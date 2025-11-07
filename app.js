@@ -1,20 +1,46 @@
+require('dotenv').config();
 var express = require('express');
 var path = require('path');
 var cookieParser = require('cookie-parser');
 var logger = require('morgan');
+var mongoose = require('mongoose');
+var cors = require('cors');
 
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
+var authRouter = require('./routes/auth');
 
 var app = express();
 
+var clientOrigin = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
+var mongoUri = process.env.MONGODB_URI;
+
+if (!mongoUri) {
+  console.error('Missing MONGODB_URI environment variable.');
+  process.exit(1);
+}
+
 app.use(logger('dev'));
+app.use(cors({ origin: clientOrigin, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
+mongoose
+  .connect(mongoUri, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(function () {
+    console.log('Connected to MongoDB');
+  })
+  .catch(function (error) {
+    console.error('MongoDB connection error:', error);
+  });
+
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
+app.use('/auth', authRouter);
 
 module.exports = app;
