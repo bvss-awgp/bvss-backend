@@ -1,0 +1,481 @@
+var nodemailer = require('nodemailer');
+
+var transporter = null;
+var transporterInitialized = false;
+
+var getTransporter = function () {
+  if (transporterInitialized) {
+    return transporter;
+  }
+
+  transporterInitialized = true;
+
+  var user = process.env.SMTP_USER;
+  var pass = process.env.SMTP_PASS;
+
+  if (!user || !pass) {
+    console.warn('Email transport not configured. Missing SMTP_USER or SMTP_PASS.');
+    return null;
+  }
+
+  try {
+    transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: user,
+        pass: pass,
+      },
+    });
+  } catch (error) {
+    console.error('Failed to initialize email transport:', error);
+    transporter = null;
+  }
+
+  return transporter;
+};
+
+var buildContributionEmail = function (context) {
+  var recipientName = context.firstName || 'भाई/बहन';
+  var formLink = process.env.CONTRIBUTION_FORM_LINK || '#';
+  var videoLink = 'https://youtu.be/Vk9yrdgceL0?si=tKsbYSn-0YBf7Kvh';
+  // Use topic from Repository if provided, otherwise use default
+  var subjectName = context.topicName ;
+  var subjectCode = context.topicCode ;
+
+  var lines = [
+    'आदरणीय ' + recipientName + ',',
+    '',
+    'सादर प्रणाम,',
+    '',
+    'ब्रह्मऋषि विश्वामित्र शोध संस्थान(अखिल विश्व गायत्री परिवार ) में अपना मूल्यवान समयदान देने हेतु हम हृदय से आपका आभार व्यक्त करते हैं।',
+    '',
+    'परम पूज्य गुरुदेव की चेतना से DIYA ग्रुप, गायत्री परिवार के अंतर्गत चलाए जा रहे ब्रह्मऋषि विश्वामित्र शोध संस्थान की ओर से आपसे यह निवेदन है कि हम समाजहित, राष्ट्र निर्माण और जागरूकता के लिए शोध आधारित वीडियो सामग्री तैयार कर रहे हैं।',
+    '',
+    'अतः आप सभी से निवेदन है की इस ईमेल को ध्यानपूर्वक पढ़े |',
+    '',
+    '',
+    'आपका सहयोग हमारे लिए अत्यंत महत्वपूर्ण है।',
+    '',
+    'आपका विषय :- ' + subjectName,
+    'विषय कोड :- ' + subjectCode,
+    '',
+    '3. वीडियो बनाने से पूर्व कुछ महत्वपूर्ण बिंदु :-',
+    '',
+    '1. प्रारम्भ',
+    '   * दर्शकों को नमस्कार और विषय का संक्षिप्त परिचय।',
+    '',
+    '2. विषय का परिचय एवं समस्या का प्रस्तुतिकरण',
+    '   विषय को थोड़ा गहराई से समझाइए की यह विषय क्या है',
+    '   विषय क्यों ज़रूरी है एवं',
+    '   इस विषय से आज क्या समस्या आ रही है ।',
+    '',
+    '3. शोध आधारित जानकारी',
+    '   प्रामाणिक और शोध-आधारित ज्ञान साझा करें।',
+    '   (जैसे कोई लेटेस्ट न्यूज आपके टॉपिक से रिलेटेड या कोई लेटेस्ट एनालिटिकल डाटा)',
+    '   बिंदुवार समझाएँ (3–4 मुख्य बिंदु)।',
+    '   आसान भाषा, परंतु वैज्ञानिक दृष्टिकोण।',
+    '',
+    '4. समाधान और जीवन में उपयोग',
+    '   व्यावहारिक समाधान प्रस्तुत करें।',
+    '',
+    '5. प्रेरणात्मक संदेश और आह्वान',
+    '   समाज, राष्ट्र और मानवता के हित में सकारात्मक आह्वान।',
+    '',
+    '6. समापन',
+    '   दर्शकों का धन्यवाद।',
+    '',
+    'नोट:— वीडियो की न्यूनतम लेंथ 12 - 15 मिनिट का होना चाहिए।',
+    '',
+    'महत्वपूर्ण बिंदु:',
+    '* आपको स्वयं वीडियो एडिट नहीं करना है |',
+    '* आपको वीडियो शूट करते समय भारतीय वेशभूषा धारण करना है |',
+    '* भाषा सरल, स्पष्ट और प्रेरणादायक हो।',
+    '* उदाहरण, तथ्य और शोध का आधार अवश्य हो।',
+    '* पृष्ठभूमि शांति और गंभीरता वाली हो।',
+    '* कोई व्यक्तिगत प्रचार या असंबंधित सामग्री शामिल न करें।',
+    '* किसी भी प्रकार की राजनैतिक टिपण्णी न करे |',
+    '',
+    'हमारा उद्देश्य है कि आपका ज्ञान और अनुभव समाज के लिए मार्गदर्शक बने। कृपया इस फ़ॉर्मेट के अनुसार सामग्री तैयार करें और हमें वीडियो रूप में भेजें।',
+    '',
+    'आपके सुविधा के लिए वीडियो कैसे बनाये एवं आपके विषय का स्टडी मटेरियल इस ईमेल के साथ अटैच है |',
+    '',
+    'वीडियो लिंक :- ' + videoLink,
+    '',
+    '(यह वीडियो केवल वक्ताओं के लिए संदर्भ स्वरूप है, ताकि वे समझ सकें कि वीडियो किस प्रकार शूट किया गया है – जैसे कैमरा एंगल, कैमरे से दूरी आदि।)',
+    '',
+    'वीडियो भेजने की अंतिम अवधि :-',
+    '',
+    'वीडियो कैसे भेजे :-',
+    '',
+    'आपका रिकॉर्ड किया हुआ वीडियो अपने पर्सनल गूगल ड्राइव पर एक फोल्डर बना कर उसमे वीडियो अपलोड कर दे एवं वह फोल्डर इस ईमेल(bvshodhsansthan@gmail.com) पर शेयर कर दे |',
+    '',
+    'आपका सहयोग समाज के लिए एक अमूल्य योगदान होगा।',
+    '',
+    'धन्यवाद एवं शुभकामनाएँ।',
+    '',
+    'सादर,',
+    'परम पूज्य गुरुदेव की चेतना से',
+    'DIYA ग्रुप, गायत्री परिवार',
+    'ब्रह्मऋषि विश्वामित्र शोध संस्थान',
+  ];
+
+  var text = lines.join('\n');
+  var html =
+    '<!DOCTYPE html>' +
+    '<html lang="hi" dir="ltr">' +
+    '<head>' +
+    '<meta charset="UTF-8">' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+    '</head>' +
+    '<body style="margin:0; padding:0; font-family: \'Noto Sans Devanagari\', \'Mangal\', Arial, sans-serif; background-color:#f5f5f5; direction:ltr; text-align:left;">' +
+    '<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f5f5; padding:40px 20px;">' +
+    '<tr>' +
+    '<td align="center">' +
+    '<table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 4px 6px rgba(0,0,0,0.1);">' +
+    
+    // Header
+    '<tr>' +
+    '<td style="background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%); padding:32px 40px; text-align:center;">' +
+    '<h1 style="margin:0; color:#ffffff; font-size:24px; font-weight:700;">🎥 वीडियो योगदान दिशानिर्देश</h1>' +
+    '</td>' +
+    '</tr>' +
+    
+    // Content
+    '<tr>' +
+    '<td style="padding:40px; text-align:left;">' +
+    
+    '<p style="margin:0 0 16px; color:#111827; font-size:16px; font-weight:600; text-align:left;">आदरणीय ' + recipientName + ',</p>' +
+    '<p style="margin:0 0 16px; color:#374151; font-size:15px; line-height:1.8; text-align:left;">सादर प्रणाम,</p>' +
+    
+    '<p style="margin:0 0 16px; color:#374151; font-size:15px; line-height:1.8; text-align:left;">ब्रह्मऋषि विश्वामित्र शोध संस्थान(अखिल विश्व गायत्री परिवार ) में अपना मूल्यवान समयदान देने हेतु हम हृदय से आपका आभार व्यक्त करते हैं।</p>' +
+    
+    '<p style="margin:0 0 16px; color:#374151; font-size:15px; line-height:1.8; text-align:left;">परम पूज्य गुरुदेव की चेतना से DIYA ग्रुप, गायत्री परिवार के अंतर्गत चलाए जा रहे ब्रह्मऋषि विश्वामित्र शोध संस्थान की ओर से आपसे यह निवेदन है कि हम समाजहित, राष्ट्र निर्माण और जागरूकता के लिए शोध आधारित वीडियो सामग्री तैयार कर रहे हैं।</p>' +
+    
+    '<div style="background-color:#fef3c7; border-left:4px solid #f59e0b; padding:16px; border-radius:8px; margin:20px 0;">' +
+    '<p style="margin:0; color:#78350f; font-size:14px; font-weight:600; text-align:left;">⚠️ अतः आप सभी से निवेदन है की इस ईमेल को ध्यानपूर्वक पढ़े |</p>' +
+    '</div>' +
+    
+    '<p style="margin:16px 0; color:#374151; font-size:15px; line-height:1.8; text-align:left;">कृपया नीचे दिए गए लिंक पर उपलब्ध फॉर्म को भरने का कष्ट करें:</p>' +
+    '<p style="margin:8px 0 16px; text-align:left;"><a href="' + formLink + '" style="color:#ea580c; font-size:15px; font-weight:600; text-decoration:none;">📝 फॉर्म भरें</a></p>' +
+    
+    '<p style="margin:16px 0; color:#374151; font-size:15px; line-height:1.8; text-align:left;">आपका सहयोग हमारे लिए अत्यंत महत्वपूर्ण है।</p>' +
+    
+    '<div style="background-color:#f9fafb; border-radius:8px; padding:20px; margin:20px 0;">' +
+    '<p style="margin:0 0 8px; color:#111827; font-size:15px; font-weight:600; text-align:left;">📌 आपका विषय: <span style="color:#ea580c;">' + subjectName + '</span></p>' +
+    '<p style="margin:0; color:#111827; font-size:15px; font-weight:600; text-align:left;">🏷️ विषय कोड: <span style="color:#ea580c;">' + subjectCode + '</span></p>' +
+    '</div>' +
+    
+    '<h3 style="margin:24px 0 12px; color:#111827; font-size:18px; font-weight:700; text-align:left;">3. वीडियो बनाने से पूर्व कुछ महत्वपूर्ण बिंदु:</h3>' +
+    
+    '<div style="background-color:#f9fafb; border-radius:8px; padding:20px; margin:16px 0;">' +
+    '<ol style="margin:0; padding-left:20px; color:#374151; font-size:15px; line-height:2; text-align:left;">' +
+    '<li style="margin-bottom:12px;"><strong>प्रारम्भ</strong><br/><span style="color:#6b7280; font-size:14px;">दर्शकों को नमस्कार और विषय का संक्षिप्त परिचय।</span></li>' +
+    '<li style="margin-bottom:12px;"><strong>विषय का परिचय एवं समस्या का प्रस्तुतिकरण</strong><br/><span style="color:#6b7280; font-size:14px;">विषय को थोड़ा गहराई से समझाइए की यह विषय क्या है, विषय क्यों ज़रूरी है एवं इस विषय से आज क्या समस्या आ रही है।</span></li>' +
+    '<li style="margin-bottom:12px;"><strong>शोध आधारित जानकारी</strong><br/><span style="color:#6b7280; font-size:14px;">प्रामाणिक और शोध-आधारित ज्ञान साझा करें। (जैसे कोई लेटेस्ट न्यूज आपके टॉपिक से रिलेटेड या कोई लेटेस्ट एनालिटिकल डाटा) बिंदुवार समझाएँ (3–4 मुख्य बिंदु)। आसान भाषा, परंतु वैज्ञानिक दृष्टिकोण।</span></li>' +
+    '<li style="margin-bottom:12px;"><strong>समाधान और जीवन में उपयोग</strong><br/><span style="color:#6b7280; font-size:14px;">व्यावहारिक समाधान प्रस्तुत करें।</span></li>' +
+    '<li style="margin-bottom:12px;"><strong>प्रेरणात्मक संदेश और आह्वान</strong><br/><span style="color:#6b7280; font-size:14px;">समाज, राष्ट्र और मानवता के हित में सकारात्मक आह्वान।</span></li>' +
+    '<li style="margin-bottom:12px;"><strong>समापन</strong><br/><span style="color:#6b7280; font-size:14px;">दर्शकों का धन्यवाद।</span></li>' +
+    '</ol>' +
+    '</div>' +
+    
+    '<div style="background-color:#fee2e2; border-left:4px solid #dc2626; padding:16px; border-radius:8px; margin:20px 0;">' +
+    '<p style="margin:0 0 8px; color:#991b1b; font-size:14px; font-weight:600; text-align:left;">📝 नोट: वीडियो की न्यूनतम लेंथ 12 - 15 मिनिट का होना चाहिए।</p>' +
+    '</div>' +
+    
+    '<h4 style="margin:20px 0 12px; color:#111827; font-size:16px; font-weight:600; text-align:left;">महत्वपूर्ण बिंदु:</h4>' +
+    '<ul style="margin:0; padding-left:20px; color:#374151; font-size:14px; line-height:1.8; text-align:left;">' +
+    '<li style="margin-bottom:8px;">आपको स्वयं वीडियो एडिट नहीं करना है |</li>' +
+    '<li style="margin-bottom:8px;">आपको वीडियो शूट करते समय भारतीय वेशभूषा धारण करना है |</li>' +
+    '<li style="margin-bottom:8px;">भाषा सरल, स्पष्ट और प्रेरणादायक हो।</li>' +
+    '<li style="margin-bottom:8px;">उदाहरण, तथ्य और शोध का आधार अवश्य हो।</li>' +
+    '<li style="margin-bottom:8px;">पृष्ठभूमि शांति और गंभीरता वाली हो।</li>' +
+    '<li style="margin-bottom:8px;">कोई व्यक्तिगत प्रचार या असंबंधित सामग्री शामिल न करें।</li>' +
+    '<li style="margin-bottom:8px;">किसी भी प्रकार की राजनैतिक टिपण्णी न करे |</li>' +
+    '</ul>' +
+    
+    '<p style="margin:20px 0; color:#374151; font-size:15px; line-height:1.8; text-align:left;">हमारा उद्देश्य है कि आपका ज्ञान और अनुभव समाज के लिए मार्गदर्शक बने। कृपया इस फ़ॉर्मेट के अनुसार सामग्री तैयार करें और हमें वीडियो रूप में भेजें।</p>' +
+    
+    '<div style="background-color:#f0f9ff; border-radius:8px; padding:16px; margin:20px 0;">' +
+    '<p style="margin:0 0 8px; color:#111827; font-size:15px; font-weight:600; text-align:left;">🎬 वीडियो लिंक:</p>' +
+    '<p style="margin:0; text-align:left;"><a href="' + videoLink + '" style="color:#0284c7; font-size:14px; text-decoration:none;">' + videoLink + '</a></p>' +
+    '<p style="margin:8px 0 0; color:#6b7280; font-size:13px; text-align:left;">(यह वीडियो केवल वक्ताओं के लिए संदर्भ स्वरूप है, ताकि वे समझ सकें कि वीडियो किस प्रकार शूट किया गया है – जैसे कैमरा एंगल, कैमरे से दूरी आदि।)</p>' +
+    '</div>' +
+    
+    '<h4 style="margin:20px 0 12px; color:#111827; font-size:16px; font-weight:600; text-align:left;">📤 वीडियो कैसे भेजे:</h4>' +
+    '<p style="margin:0 0 16px; color:#374151; font-size:15px; line-height:1.8; text-align:left;">आपका रिकॉर्ड किया हुआ वीडियो अपने पर्सनल गूगल ड्राइव पर एक फोल्डर बना कर उसमे वीडियो अपलोड कर दे एवं वह फोल्डर इस ईमेल (<a href="mailto:bvshodhsansthan@gmail.com" style="color:#ea580c;">bvshodhsansthan@gmail.com</a>) पर शेयर कर दे |</p>' +
+    
+    '<p style="margin:20px 0; color:#374151; font-size:15px; line-height:1.8; font-weight:600; text-align:left;">आपका सहयोग समाज के लिए एक अमूल्य योगदान होगा।</p>' +
+    
+    '<p style="margin:20px 0 8px; color:#374151; font-size:15px; line-height:1.8; text-align:left;">धन्यवाद एवं शुभकामनाएँ।</p>' +
+    
+    '</td>' +
+    '</tr>' +
+    
+    // Footer
+    '<tr>' +
+    '<td style="background-color:#f9fafb; padding:24px 40px; border-top:1px solid #e5e7eb; text-align:left;">' +
+    '<p style="margin:0 0 8px; color:#111827; font-size:15px; font-weight:600; text-align:left;">सादर,</p>' +
+    '<p style="margin:0 0 4px; color:#6b7280; font-size:14px; text-align:left;">परम पूज्य गुरुदेव की चेतना से</p>' +
+    '<p style="margin:0 0 4px; color:#6b7280; font-size:14px; text-align:left;">DIYA ग्रुप, गायत्री परिवार</p>' +
+    '<p style="margin:0; color:#6b7280; font-size:14px; font-weight:600; text-align:left;">ब्रह्मऋषि विश्वामित्र शोध संस्थान</p>' +
+    '</td>' +
+    '</tr>' +
+    
+    '</table>' +
+    '</td>' +
+    '</tr>' +
+    '</table>' +
+    '</body>' +
+    '</html>';
+
+  return { text, html };
+};
+
+var buildContactEmail = function (context) {
+  var recipientName = context.name || 'Valued Visitor';
+  var inquiryType = context.inquiryType || 'inquiry';
+  var inquiryTypeLabel = inquiryType
+    .split('-')
+    .map(function (word) {
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(' ');
+
+  var lines = [
+    'Dear ' + recipientName + ',',
+    '',
+    'Thank you for contacting the Brahmarishi Vishwamitra Research Center.',
+    'We have received your ' + inquiryTypeLabel + ' inquiry and appreciate you reaching out to us.',
+    '',
+    'Our team will review your message and get back to you as soon as possible.',
+    '',
+    'If you have any urgent questions, please feel free to contact us directly.',
+    '',
+    'Warm regards,',
+    'Brahmarishi Vishwamitra Research Center',
+  ];
+
+  var text = lines.join('\n');
+  var html =
+    '<p style="margin:0 0 16px;">Dear ' +
+    recipientName +
+    ',</p>' +
+    '<p style="margin:0 0 16px;">Thank you for contacting the Brahmarishi Vishwamitra Research Center. We have received your <strong>' +
+    inquiryTypeLabel +
+    '</strong> inquiry and appreciate you reaching out to us.</p>' +
+    '<p style="margin:0 0 16px;">Our team will review your message and get back to you as soon as possible.</p>' +
+    '<p style="margin:0 0 16px;">If you have any urgent questions, please feel free to contact us directly.</p>' +
+    '<p style="margin:0;">Warm regards,<br/>Brahmarishi Vishwamitra Research Center</p>';
+
+  return { text, html };
+};
+
+var sendContributionConfirmation = async function (recipientEmail, context) {
+  var mailTransporter = getTransporter();
+  if (!mailTransporter) {
+    return;
+  }
+
+  var from = process.env.MAIL_FROM || process.env.SMTP_USER;
+  var subject = process.env.CONTRIBUTION_MAIL_SUBJECT || 'Thank you for your contribution submission';
+  var content = buildContributionEmail(context || {});
+
+  try {
+    var info = await mailTransporter.sendMail({
+      to: recipientEmail,
+      from: from,
+      subject: subject,
+      text: content.text,
+      html: content.html,
+    });
+    console.log('Email sent: ' + info.response);
+  } catch (error) {
+    console.error('Error sending email:', error);
+    throw error;
+  }
+};
+
+var buildAdminContactEmail = function (context) {
+  var name = context.name || 'Unknown';
+  var email = context.email || 'No email provided';
+  var inquiryType = context.inquiryType || 'inquiry';
+  var message = context.message || 'No message provided';
+  var inquiryTypeLabel = inquiryType
+    .split('-')
+    .map(function (word) {
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(' ');
+
+  var lines = [
+    'New Contact Form Submission',
+    '',
+    'A new contact form submission has been received:',
+    '',
+    'Name: ' + name,
+    'Email: ' + email,
+    'Inquiry Type: ' + inquiryTypeLabel,
+    'Message:',
+    message,
+    '',
+    'Please review and respond to this inquiry as soon as possible.',
+  ];
+
+  var text = lines.join('\n');
+  var html =
+    '<!DOCTYPE html>' +
+    '<html lang="en">' +
+    '<head>' +
+    '<meta charset="UTF-8">' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+    '</head>' +
+    '<body style="margin:0; padding:0; font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, \'Helvetica Neue\', Arial, sans-serif; background-color:#f5f5f5;">' +
+    '<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f5f5; padding:40px 20px;">' +
+    '<tr>' +
+    '<td align="center">' +
+    '<table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 4px 6px rgba(0,0,0,0.1);">' +
+    
+    // Header with gradient
+    '<tr>' +
+    '<td style="background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%); padding:32px 40px; text-align:center;">' +
+    '<h1 style="margin:0; color:#ffffff; font-size:24px; font-weight:700; letter-spacing:0.5px;">📧 New Contact Form Submission</h1>' +
+    '<p style="margin:8px 0 0; color:#ffffff; font-size:14px; opacity:0.95;">You have received a new inquiry</p>' +
+    '</td>' +
+    '</tr>' +
+    
+    // Content section
+    '<tr>' +
+    '<td style="padding:40px;">' +
+    
+    // Info card
+    '<div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-left:4px solid #f59e0b; padding:20px; border-radius:8px; margin-bottom:24px;">' +
+    '<p style="margin:0; color:#78350f; font-size:14px; font-weight:600;">A new contact form submission has been received and requires your attention.</p>' +
+    '</div>' +
+    
+    // Details section
+    '<div style="background-color:#f9fafb; border-radius:8px; padding:24px; margin-bottom:24px;">' +
+    '<table width="100%" cellpadding="0" cellspacing="0">' +
+    
+    // Name field
+    '<tr>' +
+    '<td style="padding:12px 0; border-bottom:1px solid #e5e7eb;">' +
+    '<table width="100%" cellpadding="0" cellspacing="0">' +
+    '<tr>' +
+    '<td width="140" style="color:#6b7280; font-size:13px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">👤 Name</td>' +
+    '<td style="color:#111827; font-size:15px; font-weight:500;">' + name + '</td>' +
+    '</tr>' +
+    '</table>' +
+    '</td>' +
+    '</tr>' +
+    
+    // Email field
+    '<tr>' +
+    '<td style="padding:12px 0; border-bottom:1px solid #e5e7eb;">' +
+    '<table width="100%" cellpadding="0" cellspacing="0">' +
+    '<tr>' +
+    '<td width="140" style="color:#6b7280; font-size:13px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">✉️ Email</td>' +
+    '<td><a href="mailto:' + email + '" style="color:#ea580c; font-size:15px; font-weight:500; text-decoration:none;">' + email + '</a></td>' +
+    '</tr>' +
+    '</table>' +
+    '</td>' +
+    '</tr>' +
+    
+    // Inquiry Type field
+    '<tr>' +
+    '<td style="padding:12px 0;">' +
+    '<table width="100%" cellpadding="0" cellspacing="0">' +
+    '<tr>' +
+    '<td width="140" style="color:#6b7280; font-size:13px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">🏷️ Inquiry Type</td>' +
+    '<td><span style="display:inline-block; background-color:#fef3c7; color:#78350f; padding:4px 12px; border-radius:20px; font-size:13px; font-weight:600;">' + inquiryTypeLabel + '</span></td>' +
+    '</tr>' +
+    '</table>' +
+    '</td>' +
+    '</tr>' +
+    
+    '</table>' +
+    '</div>' +
+    
+    // Message section
+    '<div style="margin-bottom:24px;">' +
+    '<h3 style="margin:0 0 12px; color:#111827; font-size:16px; font-weight:600;">💬 Message</h3>' +
+    '<div style="background-color:#ffffff; border:2px solid #e5e7eb; border-radius:8px; padding:20px; min-height:100px;">' +
+    '<p style="margin:0; color:#374151; font-size:15px; line-height:1.6; white-space:pre-wrap; word-wrap:break-word;">' + message + '</p>' +
+    '</div>' +
+    '</div>' +
+    
+    '</td>' +
+    '</tr>' +
+    
+    // Footer
+    '<tr>' +
+    '<td style="background-color:#f9fafb; padding:24px 40px; text-align:center; border-top:1px solid #e5e7eb;">' +
+    '<p style="margin:0 0 8px; color:#6b7280; font-size:13px;">Please review and respond to this inquiry as soon as possible.</p>' +
+    '<p style="margin:0; color:#9ca3af; font-size:12px;">Brahmarishi Vishwamitra Research Center</p>' +
+    '</td>' +
+    '</tr>' +
+    
+    '</table>' +
+    '</td>' +
+    '</tr>' +
+    '</table>' +
+    '</body>' +
+    '</html>';
+
+  return { text, html };
+};
+
+var sendContactConfirmation = async function (recipientEmail, context) {
+  var mailTransporter = getTransporter();
+  if (!mailTransporter) {
+    return;
+  }
+
+  var from = process.env.MAIL_FROM || process.env.SMTP_USER;
+  var subject = process.env.CONTACT_MAIL_SUBJECT || 'Thank you for contacting us';
+  var content = buildContactEmail(context || {});
+
+  try {
+    var info = await mailTransporter.sendMail({
+      to: recipientEmail,
+      from: from,
+      subject: subject,
+      text: content.text,
+      html: content.html,
+    });
+    console.log('Contact confirmation email sent: ' + info.response);
+  } catch (error) {
+    console.error('Error sending contact confirmation email:', error);
+    throw error;
+  }
+};
+
+var sendAdminContactNotification = async function (adminEmail, context) {
+  var mailTransporter = getTransporter();
+  if (!mailTransporter) {
+    return;
+  }
+
+  var from = process.env.MAIL_FROM || process.env.SMTP_USER;
+  var subject = process.env.ADMIN_CONTACT_MAIL_SUBJECT || 'New Contact Form Submission';
+  var content = buildAdminContactEmail(context || {});
+
+  try {
+    var info = await mailTransporter.sendMail({
+      to: adminEmail,
+      from: from,
+      subject: subject,
+      text: content.text,
+      html: content.html,
+    });
+    console.log('Admin contact notification email sent: ' + info.response);
+  } catch (error) {
+    console.error('Error sending admin contact notification email:', error);
+    throw error;
+  }
+};
+
+module.exports = {
+  sendContributionConfirmation,
+  sendContactConfirmation,
+  sendAdminContactNotification,
+};

@@ -2,6 +2,7 @@ var express = require('express');
 var bcrypt = require('bcryptjs');
 var jwt = require('jsonwebtoken');
 var User = require('../models/User');
+var requireAuth = require('../middleware/auth');
 
 var router = express.Router();
 
@@ -90,6 +91,20 @@ router.post('/login', async function (req, res) {
         ? 'Server configuration error.'
         : 'Unable to log in.';
     return res.status(500).json({ message });
+  }
+});
+
+router.delete('/account', requireAuth, async function (req, res) {
+  try {
+    var userId = req.auth.userId;
+
+    // Only delete user credentials, keep contribution data
+    await User.findByIdAndDelete(userId);
+
+    return res.json({ message: 'Account deleted successfully.' });
+  } catch (error) {
+    console.error('Delete account error:', error);
+    return res.status(500).json({ message: 'Unable to delete account.' });
   }
 });
 

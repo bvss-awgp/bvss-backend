@@ -9,6 +9,9 @@ var cors = require('cors');
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
 var authRouter = require('./routes/auth');
+var contactRouter = require('./routes/contact');
+var contributionsRouter = require('./routes/contributions');
+var adminRouter = require('./routes/admin');
 
 var app = express();
 
@@ -34,6 +37,9 @@ mongoose
   })
   .then(function () {
     console.log('Connected to MongoDB');
+    if (mongoose.connection.db) {
+      console.log('Mongo namespace:', mongoose.connection.db.namespace);
+    }
   })
   .catch(function (error) {
     console.error('MongoDB connection error:', error);
@@ -42,5 +48,8 @@ mongoose
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
 app.use('/auth', authRouter);
+app.use('/contact', contactRouter);
+app.use('/contributions', contributionsRouter);
+app.use('/admin', adminRouter);
 
 module.exports = app;
