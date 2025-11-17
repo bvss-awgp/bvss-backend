@@ -12,6 +12,7 @@ var authRouter = require('./routes/auth');
 var contactRouter = require('./routes/contact');
 var contributionsRouter = require('./routes/contributions');
 var adminRouter = require('./routes/admin');
+var youtubeRouter = require('./routes/youtube');
 
 var app = express();
 
@@ -51,5 +52,6 @@ app.use('/auth', authRouter);
 app.use('/contact', contactRouter);
 app.use('/contributions', contributionsRouter);
 app.use('/admin', adminRouter);
+app.use('/youtube', youtubeRouter);
 
 module.exports = app;
