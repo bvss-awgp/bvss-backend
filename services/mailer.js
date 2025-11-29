@@ -20,14 +20,21 @@ var getTransporter = function () {
 
   try {
     transporter = nodemailer.createTransport({
-      service: 'gmail',
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false, // true for 465, false for other ports
       auth: {
         user: user,
         pass: pass,
       },
+      tls: {
+        rejectUnauthorized: false, // Allow self-signed certificates
+        ciphers: 'SSLv3'
+      },
       connectionTimeout: 10000, // 10 seconds
       socketTimeout: 10000, // 10 seconds
       greetingTimeout: 10000, // 10 seconds
+      requireTLS: true,
     });
   } catch (error) {
     console.error('Failed to initialize email transport:', error);
