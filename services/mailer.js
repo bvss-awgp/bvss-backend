@@ -25,6 +25,9 @@ var getTransporter = function () {
         user: user,
         pass: pass,
       },
+      connectionTimeout: 10000, // 10 seconds
+      socketTimeout: 10000, // 10 seconds
+      greetingTimeout: 10000, // 10 seconds
     });
   } catch (error) {
     console.error('Failed to initialize email transport:', error);
@@ -273,6 +276,7 @@ var buildContactEmail = function (context) {
 var sendContributionConfirmation = async function (recipientEmail, context) {
   var mailTransporter = getTransporter();
   if (!mailTransporter) {
+    console.warn('Email transporter not available. Skipping contribution confirmation email.');
     return;
   }
 
@@ -281,17 +285,29 @@ var sendContributionConfirmation = async function (recipientEmail, context) {
   var content = buildContributionEmail(context || {});
 
   try {
-    var info = await mailTransporter.sendMail({
-      to: recipientEmail,
-      from: from,
-      subject: subject,
-      text: content.text,
-      html: content.html,
-    });
-    console.log('Email sent: ' + info.response);
+    var info = await Promise.race([
+      mailTransporter.sendMail({
+        to: recipientEmail,
+        from: from,
+        subject: subject,
+        text: content.text,
+        html: content.html,
+      }),
+      new Promise(function (_, reject) {
+        setTimeout(function () {
+          reject(new Error('Email send timeout after 8 seconds'));
+        }, 8000);
+      })
+    ]);
+    console.log('Contribution confirmation email sent: ' + info.response);
   } catch (error) {
-    console.error('Error sending email:', error);
-    throw error;
+    // Log as warning, not error, since email is non-critical
+    if (error.code === 'ETIMEDOUT' || error.message.includes('timeout')) {
+      console.warn('Email send timeout (non-critical):', recipientEmail);
+    } else {
+      console.warn('Failed to send contribution confirmation email (non-critical):', error.message);
+    }
+    // Don't throw - email failure shouldn't break the main flow
   }
 };
 
@@ -427,6 +443,7 @@ var buildAdminContactEmail = function (context) {
 var sendContactConfirmation = async function (recipientEmail, context) {
   var mailTransporter = getTransporter();
   if (!mailTransporter) {
+    console.warn('Email transporter not available. Skipping contact confirmation email.');
     return;
   }
 
@@ -435,23 +452,36 @@ var sendContactConfirmation = async function (recipientEmail, context) {
   var content = buildContactEmail(context || {});
 
   try {
-    var info = await mailTransporter.sendMail({
-      to: recipientEmail,
-      from: from,
-      subject: subject,
-      text: content.text,
-      html: content.html,
-    });
+    var info = await Promise.race([
+      mailTransporter.sendMail({
+        to: recipientEmail,
+        from: from,
+        subject: subject,
+        text: content.text,
+        html: content.html,
+      }),
+      new Promise(function (_, reject) {
+        setTimeout(function () {
+          reject(new Error('Email send timeout after 8 seconds'));
+        }, 8000);
+      })
+    ]);
     console.log('Contact confirmation email sent: ' + info.response);
   } catch (error) {
-    console.error('Error sending contact confirmation email:', error);
-    throw error;
+    // Log as warning, not error, since email is non-critical
+    if (error.code === 'ETIMEDOUT' || error.message.includes('timeout')) {
+      console.warn('Email send timeout (non-critical):', recipientEmail);
+    } else {
+      console.warn('Failed to send contact confirmation email (non-critical):', error.message);
+    }
+    // Don't throw - email failure shouldn't break the main flow
   }
 };
 
 var sendAdminContactNotification = async function (adminEmail, context) {
   var mailTransporter = getTransporter();
   if (!mailTransporter) {
+    console.warn('Email transporter not available. Skipping admin notification email.');
     return;
   }
 
@@ -460,17 +490,29 @@ var sendAdminContactNotification = async function (adminEmail, context) {
   var content = buildAdminContactEmail(context || {});
 
   try {
-    var info = await mailTransporter.sendMail({
-      to: adminEmail,
-      from: from,
-      subject: subject,
-      text: content.text,
-      html: content.html,
-    });
+    var info = await Promise.race([
+      mailTransporter.sendMail({
+        to: adminEmail,
+        from: from,
+        subject: subject,
+        text: content.text,
+        html: content.html,
+      }),
+      new Promise(function (_, reject) {
+        setTimeout(function () {
+          reject(new Error('Email send timeout after 8 seconds'));
+        }, 8000);
+      })
+    ]);
     console.log('Admin contact notification email sent: ' + info.response);
   } catch (error) {
-    console.error('Error sending admin contact notification email:', error);
-    throw error;
+    // Log as warning, not error, since email is non-critical
+    if (error.code === 'ETIMEDOUT' || error.message.includes('timeout')) {
+      console.warn('Email send timeout (non-critical):', adminEmail);
+    } else {
+      console.warn('Failed to send admin notification email (non-critical):', error.message);
+    }
+    // Don't throw - email failure shouldn't break the main flow
   }
 };
 

@@ -22,31 +22,25 @@ router.post('/', async function (req, res) {
       message,
     });
 
-    // Send confirmation email to user
-    try {
-      await sendContactConfirmation(email, {
-        name: name,
-        inquiryType: inquiryType,
-      });
-    } catch (emailError) {
-      console.error('Failed to send contact confirmation email:', emailError);
-      // Don't fail the request if email fails
-    }
+    // Send confirmation email to user (non-blocking)
+    sendContactConfirmation(email, {
+      name: name,
+      inquiryType: inquiryType,
+    }).catch(function() {
+      // Error already logged in mailer service
+    });
 
-    // Send notification email to admin
+    // Send notification email to admin (non-blocking)
     var adminEmail = process.env.ADMIN_EMAIL || process.env.SMTP_USER;
     if (adminEmail) {
-      try {
-        await sendAdminContactNotification(adminEmail, {
-          name: name,
-          email: email,
-          inquiryType: inquiryType,
-          message: message,
-        });
-      } catch (adminEmailError) {
-        console.error('Failed to send admin contact notification email:', adminEmailError);
-        // Don't fail the request if email fails
-      }
+      sendAdminContactNotification(adminEmail, {
+        name: name,
+        email: email,
+        inquiryType: inquiryType,
+        message: message,
+      }).catch(function() {
+        // Error already logged in mailer service
+      });
     }
 
     return res.status(201).json({

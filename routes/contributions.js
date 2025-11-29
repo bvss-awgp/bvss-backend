@@ -100,17 +100,16 @@ router.post('/', async function (req, res) {
         console.error('Failed to record contribution detail:', detailError);
       }
 
-      try {
-        await sendContributionConfirmation(body.email, {
-          firstName: body.firstName,
-          message: existingMessage,
-          topicName: selectedTopic ? selectedTopic.topicName : null,
-          topicCategory: selectedTopic ? selectedTopic.category : null,
-          topicCode: selectedTopic ? selectedTopic._id.toString().substring(0, 8).toUpperCase() : null,
-        });
-      } catch (emailError) {
-        console.error('Failed to send contribution confirmation email:', emailError);
-      }
+      // Send confirmation email (non-blocking)
+      sendContributionConfirmation(body.email, {
+        firstName: body.firstName,
+        message: existingMessage,
+        topicName: selectedTopic ? selectedTopic.topicName : null,
+        topicCategory: selectedTopic ? selectedTopic.category : null,
+        topicCode: selectedTopic ? selectedTopic._id.toString().substring(0, 8).toUpperCase() : null,
+      }).catch(function() {
+        // Error already logged in mailer service
+      });
 
       return res.json({
         contribution: existing,
@@ -181,17 +180,16 @@ router.post('/', async function (req, res) {
       console.error('Failed to record contribution detail:', detailCreateError);
     }
 
-    try {
-      await sendContributionConfirmation(body.email, {
-        firstName: body.firstName,
-        message: creationMessage,
-        topicName: selectedTopic ? selectedTopic.topicName : null,
-        topicCategory: selectedTopic ? selectedTopic.category : null,
-        topicCode: selectedTopic ? selectedTopic._id.toString().substring(0, 8).toUpperCase() : null,
-      });
-    } catch (emailCreateError) {
-      console.error('Failed to send contribution confirmation email:', emailCreateError);
-    }
+    // Send confirmation email (non-blocking)
+    sendContributionConfirmation(body.email, {
+      firstName: body.firstName,
+      message: creationMessage,
+      topicName: selectedTopic ? selectedTopic.topicName : null,
+      topicCategory: selectedTopic ? selectedTopic.category : null,
+      topicCode: selectedTopic ? selectedTopic._id.toString().substring(0, 8).toUpperCase() : null,
+    }).catch(function() {
+      // Error already logged in mailer service
+    });
 
     return res.status(201).json({
       contribution,
