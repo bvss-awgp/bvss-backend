@@ -130,19 +130,30 @@ router.patch('/repositories/:id/status', async function (req, res) {
 router.delete('/repositories/:id', async function (req, res) {
   try {
     var repositoryId = req.params.id;
+    console.log('DELETE /repositories/:id - Repository ID:', repositoryId);
+
+    if (!repositoryId) {
+      return res.status(400).json({ message: 'Repository ID is required.' });
+    }
 
     var repository = await Repository.findByIdAndDelete(repositoryId);
 
     if (!repository) {
+      console.log('Repository not found with ID:', repositoryId);
       return res.status(404).json({ message: 'Repository not found.' });
     }
 
+    console.log('Repository deleted successfully:', repositoryId);
     return res.json({
       message: 'Topic deleted successfully.',
     });
   } catch (error) {
     console.error('Delete repository error:', error);
-    return res.status(500).json({ message: 'Unable to delete topic.' });
+    console.error('Error stack:', error.stack);
+    return res.status(500).json({ 
+      message: 'Unable to delete topic.',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
