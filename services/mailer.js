@@ -19,7 +19,14 @@ var getTransporter = function () {
   }
 
   // Check if using alternative email service
-  var smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
+  var smtpHost = process.env.SMTP_HOST;
+  // If SMTP_HOST is not set or is a placeholder, default to Gmail
+  if (!smtpHost || smtpHost.includes('yourprovider') || smtpHost.includes('example') || smtpHost.trim() === '') {
+    smtpHost = 'smtp.gmail.com';
+    console.log('Using default Gmail SMTP host: smtp.gmail.com');
+  } else {
+    console.log('Using custom SMTP host:', smtpHost);
+  }
   var smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
   var smtpSecure = process.env.SMTP_SECURE === 'true' || smtpPort === 465;
 
