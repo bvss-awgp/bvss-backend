@@ -385,7 +385,12 @@ var sendContributionConfirmation = async function (recipientEmail, context) {
   var resendApiKey = process.env.RESEND_API_KEY;
   if (resendApiKey) {
     try {
-      var resendFrom = process.env.RESEND_FROM || process.env.MAIL_FROM || from;
+      // Use RESEND_FROM if set, otherwise use onboarding@resend.dev (Resend's default verified domain)
+      // Don't use Gmail addresses as Resend requires domain verification
+      var resendFrom = process.env.RESEND_FROM;
+      if (!resendFrom || resendFrom.includes('@gmail.com') || resendFrom.includes('@yahoo.com') || resendFrom.includes('@hotmail.com')) {
+        resendFrom = 'onboarding@resend.dev'; // Resend's default verified domain
+      }
       var result = await Promise.race([
         sendEmailViaResend(recipientEmail, resendFrom, subject, content.html, content.text),
         new Promise(function (_, reject) {
@@ -581,7 +586,12 @@ var sendContactConfirmation = async function (recipientEmail, context) {
   var resendApiKey = process.env.RESEND_API_KEY;
   if (resendApiKey) {
     try {
-      var resendFrom = process.env.RESEND_FROM || process.env.MAIL_FROM || from;
+      // Use RESEND_FROM if set, otherwise use onboarding@resend.dev (Resend's default verified domain)
+      // Don't use Gmail addresses as Resend requires domain verification
+      var resendFrom = process.env.RESEND_FROM;
+      if (!resendFrom || resendFrom.includes('@gmail.com') || resendFrom.includes('@yahoo.com') || resendFrom.includes('@hotmail.com')) {
+        resendFrom = 'onboarding@resend.dev'; // Resend's default verified domain
+      }
       var result = await Promise.race([
         sendEmailViaResend(recipientEmail, resendFrom, subject, content.html, content.text),
         new Promise(function (_, reject) {
@@ -642,7 +652,12 @@ var sendAdminContactNotification = async function (adminEmail, context) {
   var resendApiKey = process.env.RESEND_API_KEY;
   if (resendApiKey) {
     try {
-      var resendFrom = process.env.RESEND_FROM || process.env.MAIL_FROM || from;
+      // Use RESEND_FROM if set, otherwise use onboarding@resend.dev (Resend's default verified domain)
+      // Don't use Gmail addresses as Resend requires domain verification
+      var resendFrom = process.env.RESEND_FROM;
+      if (!resendFrom || resendFrom.includes('@gmail.com') || resendFrom.includes('@yahoo.com') || resendFrom.includes('@hotmail.com')) {
+        resendFrom = 'onboarding@resend.dev'; // Resend's default verified domain
+      }
       var result = await Promise.race([
         sendEmailViaResend(adminEmail, resendFrom, subject, content.html, content.text),
         new Promise(function (_, reject) {
