@@ -13,6 +13,8 @@ var contactRouter = require('./routes/contact');
 var contributionsRouter = require('./routes/contributions');
 var adminRouter = require('./routes/admin');
 var youtubeRouter = require('./routes/youtube');
+var blogsRouter = require('./routes/blogs');
+var cookiesRouter = require('./routes/cookies');
 
 var app = express();
 
@@ -53,5 +55,7 @@ app.use('/contact', contactRouter);
 app.use('/contributions', contributionsRouter);
 app.use('/admin', adminRouter);
 app.use('/youtube', youtubeRouter);
+app.use('/blogs', blogsRouter);
+app.use('/cookies', cookiesRouter);
 
 module.exports = app;
