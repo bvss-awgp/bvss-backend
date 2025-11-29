@@ -11,6 +11,12 @@ var router = express.Router();
 
 router.use(requireAdmin);
 
+// Log all requests to admin routes for debugging
+router.use(function(req, res, next) {
+  console.log('Admin route:', req.method, req.path);
+  next();
+});
+
 router.get('/users', async function (req, res) {
   try {
     var users = await User.find({}).select('-passwordHash').lean().sort({ createdAt: -1 });
@@ -99,13 +105,18 @@ router.get('/repositories', async function (req, res) {
   }
 });
 
-// DELETE route must come before PATCH route with :id parameter to avoid route conflicts
-router.delete('/repositories/:id', async function (req, res) {
-  try {
-    var repositoryId = req.params.id;
-    console.log('DELETE /admin/repositories/:id - Repository ID:', repositoryId);
-    console.log('Request method:', req.method);
-    console.log('Request URL:', req.url);
+// DELETE route - using explicit route definition
+router.route('/repositories/:id')
+  .delete(async function (req, res) {
+    console.log('=== DELETE ROUTE HIT ===');
+    console.log('Full URL:', req.originalUrl);
+    console.log('Path:', req.path);
+    console.log('Params:', req.params);
+    try {
+      var repositoryId = req.params.id;
+      console.log('DELETE /admin/repositories/:id - Repository ID:', repositoryId);
+      console.log('Request method:', req.method);
+      console.log('Request URL:', req.url);
 
     if (!repositoryId) {
       return res.status(400).json({ message: 'Repository ID is required.' });
@@ -136,7 +147,9 @@ router.delete('/repositories/:id', async function (req, res) {
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
-});
+  });
+
+// PATCH route for status update
 
 router.patch('/repositories/:id/status', async function (req, res) {
   try {

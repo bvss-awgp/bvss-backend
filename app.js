@@ -60,8 +60,9 @@ app.use('/cookies', cookiesRouter);
 
 // 404 handler - return JSON for API routes
 app.use(function(req, res, next) {
-  if (req.path.startsWith('/admin') || req.path.startsWith('/api')) {
-    return res.status(404).json({ message: 'Route not found.' });
+  console.log('404 Handler - Method:', req.method, 'Path:', req.path, 'Original URL:', req.originalUrl);
+  if (req.originalUrl.startsWith('/admin') || req.originalUrl.startsWith('/api')) {
+    return res.status(404).json({ message: 'Route not found.', path: req.path, originalUrl: req.originalUrl });
   }
   res.status(404).send('Not found');
 });
