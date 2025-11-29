@@ -127,6 +127,25 @@ router.patch('/repositories/:id/status', async function (req, res) {
   }
 });
 
+router.delete('/repositories/:id', async function (req, res) {
+  try {
+    var repositoryId = req.params.id;
+
+    var repository = await Repository.findByIdAndDelete(repositoryId);
+
+    if (!repository) {
+      return res.status(404).json({ message: 'Repository not found.' });
+    }
+
+    return res.json({
+      message: 'Topic deleted successfully.',
+    });
+  } catch (error) {
+    console.error('Delete repository error:', error);
+    return res.status(500).json({ message: 'Unable to delete topic.' });
+  }
+});
+
 router.get('/contact-messages', async function (req, res) {
   try {
     var contactMessages = await ContactMessage.find({})
