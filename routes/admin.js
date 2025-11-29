@@ -1,4 +1,5 @@
 var express = require('express');
+var mongoose = require('mongoose');
 var User = require('../models/User');
 var Contribution = require('../models/Contribution');
 var ContributionDetail = require('../models/ContributionDetail');
@@ -98,6 +99,45 @@ router.get('/repositories', async function (req, res) {
   }
 });
 
+// DELETE route must come before PATCH route with :id parameter to avoid route conflicts
+router.delete('/repositories/:id', async function (req, res) {
+  try {
+    var repositoryId = req.params.id;
+    console.log('DELETE /admin/repositories/:id - Repository ID:', repositoryId);
+    console.log('Request method:', req.method);
+    console.log('Request URL:', req.url);
+
+    if (!repositoryId) {
+      return res.status(400).json({ message: 'Repository ID is required.' });
+    }
+
+    // Validate MongoDB ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(repositoryId)) {
+      console.log('Invalid ObjectId format:', repositoryId);
+      return res.status(400).json({ message: 'Invalid repository ID format.' });
+    }
+
+    var repository = await Repository.findByIdAndDelete(repositoryId);
+
+    if (!repository) {
+      console.log('Repository not found with ID:', repositoryId);
+      return res.status(404).json({ message: 'Repository not found.' });
+    }
+
+    console.log('Repository deleted successfully:', repositoryId);
+    return res.json({
+      message: 'Topic deleted successfully.',
+    });
+  } catch (error) {
+    console.error('Delete repository error:', error);
+    console.error('Error stack:', error.stack);
+    return res.status(500).json({ 
+      message: 'Unable to delete topic.',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
 router.patch('/repositories/:id/status', async function (req, res) {
   try {
     var repositoryId = req.params.id;
@@ -124,36 +164,6 @@ router.patch('/repositories/:id/status', async function (req, res) {
   } catch (error) {
     console.error('Update repository status error:', error);
     return res.status(500).json({ message: 'Unable to update status.' });
-  }
-});
-
-router.delete('/repositories/:id', async function (req, res) {
-  try {
-    var repositoryId = req.params.id;
-    console.log('DELETE /repositories/:id - Repository ID:', repositoryId);
-
-    if (!repositoryId) {
-      return res.status(400).json({ message: 'Repository ID is required.' });
-    }
-
-    var repository = await Repository.findByIdAndDelete(repositoryId);
-
-    if (!repository) {
-      console.log('Repository not found with ID:', repositoryId);
-      return res.status(404).json({ message: 'Repository not found.' });
-    }
-
-    console.log('Repository deleted successfully:', repositoryId);
-    return res.json({
-      message: 'Topic deleted successfully.',
-    });
-  } catch (error) {
-    console.error('Delete repository error:', error);
-    console.error('Error stack:', error.stack);
-    return res.status(500).json({ 
-      message: 'Unable to delete topic.',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
   }
 });
 
