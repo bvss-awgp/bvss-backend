@@ -18,23 +18,42 @@ var getTransporter = function () {
     return null;
   }
 
+  // Check if using alternative email service
+  var smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
+  var smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
+  var smtpSecure = process.env.SMTP_SECURE === 'true' || smtpPort === 465;
+
   try {
-    transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 587,
-      secure: false, // true for 465, false for other ports
+    var transportConfig = {
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpSecure,
       auth: {
         user: user,
         pass: pass,
       },
-      tls: {
-        rejectUnauthorized: false, // Allow self-signed certificates
-        ciphers: 'SSLv3'
-      },
-      connectionTimeout: 10000, // 10 seconds
-      socketTimeout: 10000, // 10 seconds
-      greetingTimeout: 10000, // 10 seconds
-      requireTLS: true,
+      connectionTimeout: 10000,
+      socketTimeout: 10000,
+      greetingTimeout: 10000,
+    };
+
+    // Add TLS config for Gmail
+    if (smtpHost.includes('gmail.com')) {
+      transportConfig.tls = {
+        rejectUnauthorized: false,
+      };
+      transportConfig.requireTLS = true;
+    }
+
+    transporter = nodemailer.createTransport(transportConfig);
+
+    // Verify connection (async, don't block)
+    transporter.verify(function(error, success) {
+      if (error) {
+        console.warn('SMTP connection verification failed (emails may still work):', error.message);
+      } else {
+        console.log('SMTP server is ready to send emails');
+      }
     });
   } catch (error) {
     console.error('Failed to initialize email transport:', error);
@@ -306,13 +325,20 @@ var sendContributionConfirmation = async function (recipientEmail, context) {
         }, 8000);
       })
     ]);
-    console.log('Contribution confirmation email sent: ' + info.response);
+    console.log('✅ Contribution confirmation email sent successfully to:', recipientEmail);
+    console.log('Email response:', info.response);
   } catch (error) {
-    // Log as warning, not error, since email is non-critical
+    // Log detailed error for debugging
     if (error.code === 'ETIMEDOUT' || error.message.includes('timeout')) {
-      console.warn('Email send timeout (non-critical):', recipientEmail);
+      console.warn('⚠️ Email send timeout (non-critical) - Gmail SMTP may be blocked by Render:', recipientEmail);
+      console.warn('💡 Consider using SendGrid, Mailgun, or Resend for better reliability on Render');
+    } else if (error.code === 'EAUTH') {
+      console.warn('⚠️ Email authentication failed - Check SMTP_USER and SMTP_PASS (use Gmail App Password):', error.message);
     } else {
-      console.warn('Failed to send contribution confirmation email (non-critical):', error.message);
+      console.warn('⚠️ Failed to send contribution confirmation email (non-critical):', error.message);
+      if (error.code) {
+        console.warn('Error code:', error.code);
+      }
     }
     // Don't throw - email failure shouldn't break the main flow
   }
