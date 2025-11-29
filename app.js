@@ -58,4 +58,24 @@ app.use('/youtube', youtubeRouter);
 app.use('/blogs', blogsRouter);
 app.use('/cookies', cookiesRouter);
 
+// 404 handler - return JSON for API routes
+app.use(function(req, res, next) {
+  if (req.path.startsWith('/admin') || req.path.startsWith('/api')) {
+    return res.status(404).json({ message: 'Route not found.' });
+  }
+  res.status(404).send('Not found');
+});
+
+// Error handler - return JSON for API routes
+app.use(function(err, req, res, next) {
+  console.error('Error:', err);
+  if (req.path.startsWith('/admin') || req.path.startsWith('/api')) {
+    return res.status(err.status || 500).json({ 
+      message: err.message || 'Internal server error.',
+      error: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
+  }
+  res.status(err.status || 500).send(err.message || 'Internal server error');
+});
+
 module.exports = app;
