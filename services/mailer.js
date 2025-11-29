@@ -307,41 +307,30 @@ var buildContactEmail = function (context) {
   return { text, html };
 };
 
-// Send email using MailerSend API (works better with Render)
-var sendEmailViaMailerSend = async function (to, from, subject, html, text) {
-  var mailerSendApiKey = process.env.MAILERSEND_API_KEY;
-  if (!mailerSendApiKey) {
+// Send email using Resend API (works better with Render)
+var sendEmailViaResend = async function (to, from, subject, html, text) {
+  var resendApiKey = process.env.RESEND_API_KEY;
+  if (!resendApiKey) {
     return null;
   }
 
-  var mailerSendFromEmail = process.env.MAILERSEND_FROM_EMAIL || from;
-  var mailerSendFromName = process.env.MAILERSEND_FROM_NAME || 'BVSS Research Center';
-
   var postData = JSON.stringify({
-    from: {
-      email: mailerSendFromEmail,
-      name: mailerSendFromName,
-    },
-    to: [
-      {
-        email: to,
-      },
-    ],
+    from: from,
+    to: to,
     subject: subject,
-    text: text,
     html: html,
+    text: text,
   });
 
   return new Promise(function (resolve, reject) {
     var options = {
-      hostname: 'api.mailersend.com',
+      hostname: 'api.resend.com',
       port: 443,
-      path: '/v1/email',
+      path: '/emails',
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + mailerSendApiKey,
-        'X-Requested-With': 'XMLHttpRequest',
+        'Authorization': 'Bearer ' + resendApiKey,
         'Content-Length': Buffer.byteLength(postData),
       },
       timeout: 10000,
@@ -354,11 +343,21 @@ var sendEmailViaMailerSend = async function (to, from, subject, html, text) {
       });
       res.on('end', function () {
         if (res.statusCode >= 200 && res.statusCode < 300) {
-          var response = data ? JSON.parse(data) : { message_id: 'sent' };
-          resolve(response);
+          try {
+            var response = data ? JSON.parse(data) : { id: 'sent' };
+            resolve(response);
+          } catch (parseError) {
+            resolve({ id: 'sent', raw: data });
+          }
         } else {
-          var errorData = data ? JSON.parse(data) : { message: 'Unknown error' };
-          reject(new Error('MailerSend API error: ' + res.statusCode + ' - ' + JSON.stringify(errorData)));
+          var errorData = data ? (function() {
+            try {
+              return JSON.parse(data);
+            } catch (e) {
+              return { message: data };
+            }
+          })() : { message: 'Unknown error' };
+          reject(new Error('Resend API error: ' + res.statusCode + ' - ' + JSON.stringify(errorData)));
         }
       });
     });
@@ -369,7 +368,7 @@ var sendEmailViaMailerSend = async function (to, from, subject, html, text) {
 
     req.on('timeout', function () {
       req.destroy();
-      reject(new Error('MailerSend API timeout'));
+      reject(new Error('Resend API timeout'));
     });
 
     req.write(postData);
@@ -378,27 +377,27 @@ var sendEmailViaMailerSend = async function (to, from, subject, html, text) {
 };
 
 var sendContributionConfirmation = async function (recipientEmail, context) {
-  var from = process.env.MAIL_FROM || process.env.SMTP_USER || 'noreply@mailersend.com';
+  var from = process.env.MAIL_FROM || process.env.SMTP_USER || 'onboarding@resend.dev';
   var subject = process.env.CONTRIBUTION_MAIL_SUBJECT || 'Thank you for your contribution submission';
   var content = buildContributionEmail(context || {});
 
-  // Try MailerSend API first (if API key is set)
-  var mailerSendApiKey = process.env.MAILERSEND_API_KEY;
-  if (mailerSendApiKey) {
+  // Try Resend API first (if API key is set)
+  var resendApiKey = process.env.RESEND_API_KEY;
+  if (resendApiKey) {
     try {
-      var mailerSendFrom = process.env.MAILERSEND_FROM_EMAIL || process.env.MAIL_FROM || from;
+      var resendFrom = process.env.RESEND_FROM || process.env.MAIL_FROM || from;
       var result = await Promise.race([
-        sendEmailViaMailerSend(recipientEmail, mailerSendFrom, subject, content.html, content.text),
+        sendEmailViaResend(recipientEmail, resendFrom, subject, content.html, content.text),
         new Promise(function (_, reject) {
           setTimeout(function () {
-            reject(new Error('MailerSend API timeout after 8 seconds'));
+            reject(new Error('Resend API timeout after 8 seconds'));
           }, 8000);
         })
       ]);
-      console.log('✅ Contribution confirmation email sent via MailerSend to:', recipientEmail);
+      console.log('✅ Contribution confirmation email sent via Resend to:', recipientEmail);
       return;
-    } catch (mailerSendError) {
-      console.warn('⚠️ MailerSend API failed, falling back to SMTP:', mailerSendError.message);
+    } catch (resendError) {
+      console.warn('⚠️ Resend API failed, falling back to SMTP:', resendError.message);
       // Fall through to SMTP
     }
   }
@@ -431,7 +430,7 @@ var sendContributionConfirmation = async function (recipientEmail, context) {
     // Log detailed error for debugging
     if (error.code === 'ETIMEDOUT' || error.message.includes('timeout')) {
       console.warn('⚠️ Email send timeout (non-critical) - Gmail SMTP may be blocked by Render:', recipientEmail);
-      console.warn('💡 Tip: Set MAILERSEND_API_KEY in Render environment variables for reliable email delivery');
+      console.warn('💡 Tip: Set RESEND_API_KEY in Render environment variables for reliable email delivery');
     } else if (error.code === 'EAUTH') {
       console.warn('⚠️ Email authentication failed - Check SMTP_USER and SMTP_PASS (use Gmail App Password):', error.message);
     } else {
@@ -574,27 +573,27 @@ var buildAdminContactEmail = function (context) {
 };
 
 var sendContactConfirmation = async function (recipientEmail, context) {
-  var from = process.env.MAIL_FROM || process.env.SMTP_USER || 'noreply@mailersend.com';
+  var from = process.env.MAIL_FROM || process.env.SMTP_USER || 'onboarding@resend.dev';
   var subject = process.env.CONTACT_MAIL_SUBJECT || 'Thank you for contacting us';
   var content = buildContactEmail(context || {});
 
-  // Try MailerSend API first (if API key is set)
-  var mailerSendApiKey = process.env.MAILERSEND_API_KEY;
-  if (mailerSendApiKey) {
+  // Try Resend API first (if API key is set)
+  var resendApiKey = process.env.RESEND_API_KEY;
+  if (resendApiKey) {
     try {
-      var mailerSendFrom = process.env.MAILERSEND_FROM_EMAIL || process.env.MAIL_FROM || from;
+      var resendFrom = process.env.RESEND_FROM || process.env.MAIL_FROM || from;
       var result = await Promise.race([
-        sendEmailViaMailerSend(recipientEmail, mailerSendFrom, subject, content.html, content.text),
+        sendEmailViaResend(recipientEmail, resendFrom, subject, content.html, content.text),
         new Promise(function (_, reject) {
           setTimeout(function () {
-            reject(new Error('MailerSend API timeout after 8 seconds'));
+            reject(new Error('Resend API timeout after 8 seconds'));
           }, 8000);
         })
       ]);
-      console.log('✅ Contact confirmation email sent via MailerSend to:', recipientEmail);
+      console.log('✅ Contact confirmation email sent via Resend to:', recipientEmail);
       return;
-    } catch (mailerSendError) {
-      console.warn('⚠️ MailerSend API failed, falling back to SMTP:', mailerSendError.message);
+    } catch (resendError) {
+      console.warn('⚠️ Resend API failed, falling back to SMTP:', resendError.message);
       // Fall through to SMTP
     }
   }
@@ -626,7 +625,7 @@ var sendContactConfirmation = async function (recipientEmail, context) {
     // Log as warning, not error, since email is non-critical
     if (error.code === 'ETIMEDOUT' || error.message.includes('timeout')) {
       console.warn('⚠️ Email send timeout (non-critical):', recipientEmail);
-      console.warn('💡 Tip: Set MAILERSEND_API_KEY in Render environment variables for reliable email delivery');
+      console.warn('💡 Tip: Set RESEND_API_KEY in Render environment variables for reliable email delivery');
     } else {
       console.warn('⚠️ Failed to send contact confirmation email (non-critical):', error.message);
     }
@@ -635,27 +634,27 @@ var sendContactConfirmation = async function (recipientEmail, context) {
 };
 
 var sendAdminContactNotification = async function (adminEmail, context) {
-  var from = process.env.MAIL_FROM || process.env.SMTP_USER || 'noreply@mailersend.com';
+  var from = process.env.MAIL_FROM || process.env.SMTP_USER || 'onboarding@resend.dev';
   var subject = process.env.ADMIN_CONTACT_MAIL_SUBJECT || 'New Contact Form Submission';
   var content = buildAdminContactEmail(context || {});
 
-  // Try MailerSend API first (if API key is set)
-  var mailerSendApiKey = process.env.MAILERSEND_API_KEY;
-  if (mailerSendApiKey) {
+  // Try Resend API first (if API key is set)
+  var resendApiKey = process.env.RESEND_API_KEY;
+  if (resendApiKey) {
     try {
-      var mailerSendFrom = process.env.MAILERSEND_FROM_EMAIL || process.env.MAIL_FROM || from;
+      var resendFrom = process.env.RESEND_FROM || process.env.MAIL_FROM || from;
       var result = await Promise.race([
-        sendEmailViaMailerSend(adminEmail, mailerSendFrom, subject, content.html, content.text),
+        sendEmailViaResend(adminEmail, resendFrom, subject, content.html, content.text),
         new Promise(function (_, reject) {
           setTimeout(function () {
-            reject(new Error('MailerSend API timeout after 8 seconds'));
+            reject(new Error('Resend API timeout after 8 seconds'));
           }, 8000);
         })
       ]);
-      console.log('✅ Admin contact notification email sent via MailerSend to:', adminEmail);
+      console.log('✅ Admin contact notification email sent via Resend to:', adminEmail);
       return;
-    } catch (mailerSendError) {
-      console.warn('⚠️ MailerSend API failed, falling back to SMTP:', mailerSendError.message);
+    } catch (resendError) {
+      console.warn('⚠️ Resend API failed, falling back to SMTP:', resendError.message);
       // Fall through to SMTP
     }
   }
@@ -687,7 +686,7 @@ var sendAdminContactNotification = async function (adminEmail, context) {
     // Log as warning, not error, since email is non-critical
     if (error.code === 'ETIMEDOUT' || error.message.includes('timeout')) {
       console.warn('⚠️ Email send timeout (non-critical):', adminEmail);
-      console.warn('💡 Tip: Set MAILERSEND_API_KEY in Render environment variables for reliable email delivery');
+      console.warn('💡 Tip: Set RESEND_API_KEY in Render environment variables for reliable email delivery');
     } else {
       console.warn('⚠️ Failed to send admin notification email (non-critical):', error.message);
     }
