@@ -1,4 +1,5 @@
 var nodemailer = require('nodemailer');
+var https = require('https');
 
 var transporter = null;
 var transporterInitialized = false;
@@ -306,16 +307,108 @@ var buildContactEmail = function (context) {
   return { text, html };
 };
 
+// Send email using MailerSend API (works better with Render)
+var sendEmailViaMailerSend = async function (to, from, subject, html, text) {
+  var mailerSendApiKey = process.env.MAILERSEND_API_KEY;
+  if (!mailerSendApiKey) {
+    return null;
+  }
+
+  var mailerSendFromEmail = process.env.MAILERSEND_FROM_EMAIL || from;
+  var mailerSendFromName = process.env.MAILERSEND_FROM_NAME || 'BVSS Research Center';
+
+  var postData = JSON.stringify({
+    from: {
+      email: mailerSendFromEmail,
+      name: mailerSendFromName,
+    },
+    to: [
+      {
+        email: to,
+      },
+    ],
+    subject: subject,
+    text: text,
+    html: html,
+  });
+
+  return new Promise(function (resolve, reject) {
+    var options = {
+      hostname: 'api.mailersend.com',
+      port: 443,
+      path: '/v1/email',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + mailerSendApiKey,
+        'X-Requested-With': 'XMLHttpRequest',
+        'Content-Length': Buffer.byteLength(postData),
+      },
+      timeout: 10000,
+    };
+
+    var req = https.request(options, function (res) {
+      var data = '';
+      res.on('data', function (chunk) {
+        data += chunk;
+      });
+      res.on('end', function () {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          var response = data ? JSON.parse(data) : { message_id: 'sent' };
+          resolve(response);
+        } else {
+          var errorData = data ? JSON.parse(data) : { message: 'Unknown error' };
+          reject(new Error('MailerSend API error: ' + res.statusCode + ' - ' + JSON.stringify(errorData)));
+        }
+      });
+    });
+
+    req.on('error', function (error) {
+      reject(error);
+    });
+
+    req.on('timeout', function () {
+      req.destroy();
+      reject(new Error('MailerSend API timeout'));
+    });
+
+    req.write(postData);
+    req.end();
+  });
+};
+
 var sendContributionConfirmation = async function (recipientEmail, context) {
+  var from = process.env.MAIL_FROM || process.env.SMTP_USER || 'noreply@mailersend.com';
+  var subject = process.env.CONTRIBUTION_MAIL_SUBJECT || 'Thank you for your contribution submission';
+  var content = buildContributionEmail(context || {});
+
+  // Try MailerSend API first (if API key is set)
+  var mailerSendApiKey = process.env.MAILERSEND_API_KEY;
+  if (mailerSendApiKey) {
+    try {
+      var mailerSendFrom = process.env.MAILERSEND_FROM_EMAIL || process.env.MAIL_FROM || from;
+      var result = await Promise.race([
+        sendEmailViaMailerSend(recipientEmail, mailerSendFrom, subject, content.html, content.text),
+        new Promise(function (_, reject) {
+          setTimeout(function () {
+            reject(new Error('MailerSend API timeout after 8 seconds'));
+          }, 8000);
+        })
+      ]);
+      console.log('✅ Contribution confirmation email sent via MailerSend to:', recipientEmail);
+      return;
+    } catch (mailerSendError) {
+      console.warn('⚠️ MailerSend API failed, falling back to SMTP:', mailerSendError.message);
+      // Fall through to SMTP
+    }
+  }
+
+  // Fallback to SMTP
   var mailTransporter = getTransporter();
   if (!mailTransporter) {
     console.warn('Email transporter not available. Skipping contribution confirmation email.');
     return;
   }
-
-  var from = process.env.MAIL_FROM || process.env.SMTP_USER;
-  var subject = process.env.CONTRIBUTION_MAIL_SUBJECT || 'Thank you for your contribution submission';
-  var content = buildContributionEmail(context || {});
 
   try {
     var info = await Promise.race([
@@ -338,7 +431,7 @@ var sendContributionConfirmation = async function (recipientEmail, context) {
     // Log detailed error for debugging
     if (error.code === 'ETIMEDOUT' || error.message.includes('timeout')) {
       console.warn('⚠️ Email send timeout (non-critical) - Gmail SMTP may be blocked by Render:', recipientEmail);
-      console.warn('💡 Consider using SendGrid, Mailgun, or Resend for better reliability on Render');
+      console.warn('💡 Tip: Set MAILERSEND_API_KEY in Render environment variables for reliable email delivery');
     } else if (error.code === 'EAUTH') {
       console.warn('⚠️ Email authentication failed - Check SMTP_USER and SMTP_PASS (use Gmail App Password):', error.message);
     } else {
@@ -481,15 +574,37 @@ var buildAdminContactEmail = function (context) {
 };
 
 var sendContactConfirmation = async function (recipientEmail, context) {
+  var from = process.env.MAIL_FROM || process.env.SMTP_USER || 'noreply@mailersend.com';
+  var subject = process.env.CONTACT_MAIL_SUBJECT || 'Thank you for contacting us';
+  var content = buildContactEmail(context || {});
+
+  // Try MailerSend API first (if API key is set)
+  var mailerSendApiKey = process.env.MAILERSEND_API_KEY;
+  if (mailerSendApiKey) {
+    try {
+      var mailerSendFrom = process.env.MAILERSEND_FROM_EMAIL || process.env.MAIL_FROM || from;
+      var result = await Promise.race([
+        sendEmailViaMailerSend(recipientEmail, mailerSendFrom, subject, content.html, content.text),
+        new Promise(function (_, reject) {
+          setTimeout(function () {
+            reject(new Error('MailerSend API timeout after 8 seconds'));
+          }, 8000);
+        })
+      ]);
+      console.log('✅ Contact confirmation email sent via MailerSend to:', recipientEmail);
+      return;
+    } catch (mailerSendError) {
+      console.warn('⚠️ MailerSend API failed, falling back to SMTP:', mailerSendError.message);
+      // Fall through to SMTP
+    }
+  }
+
+  // Fallback to SMTP
   var mailTransporter = getTransporter();
   if (!mailTransporter) {
     console.warn('Email transporter not available. Skipping contact confirmation email.');
     return;
   }
-
-  var from = process.env.MAIL_FROM || process.env.SMTP_USER;
-  var subject = process.env.CONTACT_MAIL_SUBJECT || 'Thank you for contacting us';
-  var content = buildContactEmail(context || {});
 
   try {
     var info = await Promise.race([
@@ -506,28 +621,51 @@ var sendContactConfirmation = async function (recipientEmail, context) {
         }, 8000);
       })
     ]);
-    console.log('Contact confirmation email sent: ' + info.response);
+    console.log('✅ Contact confirmation email sent successfully to:', recipientEmail);
   } catch (error) {
     // Log as warning, not error, since email is non-critical
     if (error.code === 'ETIMEDOUT' || error.message.includes('timeout')) {
-      console.warn('Email send timeout (non-critical):', recipientEmail);
+      console.warn('⚠️ Email send timeout (non-critical):', recipientEmail);
+      console.warn('💡 Tip: Set MAILERSEND_API_KEY in Render environment variables for reliable email delivery');
     } else {
-      console.warn('Failed to send contact confirmation email (non-critical):', error.message);
+      console.warn('⚠️ Failed to send contact confirmation email (non-critical):', error.message);
     }
     // Don't throw - email failure shouldn't break the main flow
   }
 };
 
 var sendAdminContactNotification = async function (adminEmail, context) {
+  var from = process.env.MAIL_FROM || process.env.SMTP_USER || 'noreply@mailersend.com';
+  var subject = process.env.ADMIN_CONTACT_MAIL_SUBJECT || 'New Contact Form Submission';
+  var content = buildAdminContactEmail(context || {});
+
+  // Try MailerSend API first (if API key is set)
+  var mailerSendApiKey = process.env.MAILERSEND_API_KEY;
+  if (mailerSendApiKey) {
+    try {
+      var mailerSendFrom = process.env.MAILERSEND_FROM_EMAIL || process.env.MAIL_FROM || from;
+      var result = await Promise.race([
+        sendEmailViaMailerSend(adminEmail, mailerSendFrom, subject, content.html, content.text),
+        new Promise(function (_, reject) {
+          setTimeout(function () {
+            reject(new Error('MailerSend API timeout after 8 seconds'));
+          }, 8000);
+        })
+      ]);
+      console.log('✅ Admin contact notification email sent via MailerSend to:', adminEmail);
+      return;
+    } catch (mailerSendError) {
+      console.warn('⚠️ MailerSend API failed, falling back to SMTP:', mailerSendError.message);
+      // Fall through to SMTP
+    }
+  }
+
+  // Fallback to SMTP
   var mailTransporter = getTransporter();
   if (!mailTransporter) {
     console.warn('Email transporter not available. Skipping admin notification email.');
     return;
   }
-
-  var from = process.env.MAIL_FROM || process.env.SMTP_USER;
-  var subject = process.env.ADMIN_CONTACT_MAIL_SUBJECT || 'New Contact Form Submission';
-  var content = buildAdminContactEmail(context || {});
 
   try {
     var info = await Promise.race([
@@ -544,13 +682,14 @@ var sendAdminContactNotification = async function (adminEmail, context) {
         }, 8000);
       })
     ]);
-    console.log('Admin contact notification email sent: ' + info.response);
+    console.log('✅ Admin contact notification email sent successfully to:', adminEmail);
   } catch (error) {
     // Log as warning, not error, since email is non-critical
     if (error.code === 'ETIMEDOUT' || error.message.includes('timeout')) {
-      console.warn('Email send timeout (non-critical):', adminEmail);
+      console.warn('⚠️ Email send timeout (non-critical):', adminEmail);
+      console.warn('💡 Tip: Set MAILERSEND_API_KEY in Render environment variables for reliable email delivery');
     } else {
-      console.warn('Failed to send admin notification email (non-critical):', error.message);
+      console.warn('⚠️ Failed to send admin notification email (non-critical):', error.message);
     }
     // Don't throw - email failure shouldn't break the main flow
   }
