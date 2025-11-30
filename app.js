@@ -63,7 +63,17 @@ app.use('/otp', otpRouter);
 // 404 handler - return JSON for API routes
 app.use(function(req, res, next) {
   console.log('404 Handler - Method:', req.method, 'Path:', req.path, 'Original URL:', req.originalUrl);
-  if (req.originalUrl.startsWith('/admin') || req.originalUrl.startsWith('/api')) {
+  // Check if it's an API route (starts with /admin, /api, /auth, /otp, /contact, /contributions, /users, /youtube, /blogs, /cookies)
+  if (req.originalUrl.startsWith('/admin') || 
+      req.originalUrl.startsWith('/api') || 
+      req.originalUrl.startsWith('/auth') ||
+      req.originalUrl.startsWith('/otp') ||
+      req.originalUrl.startsWith('/contact') ||
+      req.originalUrl.startsWith('/contributions') ||
+      req.originalUrl.startsWith('/users') ||
+      req.originalUrl.startsWith('/youtube') ||
+      req.originalUrl.startsWith('/blogs') ||
+      req.originalUrl.startsWith('/cookies')) {
     return res.status(404).json({ message: 'Route not found.', path: req.path, originalUrl: req.originalUrl });
   }
   res.status(404).send('Not found');
@@ -72,7 +82,17 @@ app.use(function(req, res, next) {
 // Error handler - return JSON for API routes
 app.use(function(err, req, res, next) {
   console.error('Error:', err);
-  if (req.path.startsWith('/admin') || req.path.startsWith('/api')) {
+  // Check if it's an API route
+  if (req.path.startsWith('/admin') || 
+      req.path.startsWith('/api') || 
+      req.path.startsWith('/auth') ||
+      req.path.startsWith('/otp') ||
+      req.path.startsWith('/contact') ||
+      req.path.startsWith('/contributions') ||
+      req.path.startsWith('/users') ||
+      req.path.startsWith('/youtube') ||
+      req.path.startsWith('/blogs') ||
+      req.path.startsWith('/cookies')) {
     return res.status(err.status || 500).json({ 
       message: err.message || 'Internal server error.',
       error: process.env.NODE_ENV === 'development' ? err.stack : undefined

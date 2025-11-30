@@ -38,11 +38,14 @@ var generateSessionId = function () {
 // Send OTP endpoint
 router.post('/send', async function (req, res) {
   try {
+    console.log('📧 OTP send request received:', { email: req.body.email, hasPassword: !!req.body.password, hasName: !!req.body.name });
+    
     var email = req.body.email;
     var password = req.body.password;
     var name = req.body.name || '';
 
     if (!email || !password) {
+      console.log('❌ Missing email or password');
       return res.status(400).json({ message: 'Email and password are required.' });
     }
 
@@ -101,11 +104,14 @@ router.post('/send', async function (req, res) {
 // Verify OTP endpoint
 router.post('/verify', async function (req, res) {
   try {
+    console.log('🔐 OTP verify request received:', { email: req.body.email, hasOTP: !!req.body.otp, hasSessionId: !!req.body.sessionId });
+    
     var email = req.body.email;
     var otp = req.body.otp;
     var sessionId = req.body.sessionId;
 
     if (!email || !otp || !sessionId) {
+      console.log('❌ Missing email, OTP, or sessionId');
       return res.status(400).json({ message: 'Email, OTP, and session ID are required.' });
     }
 
@@ -184,10 +190,13 @@ router.post('/verify', async function (req, res) {
 // Resend OTP endpoint
 router.post('/resend', async function (req, res) {
   try {
+    console.log('🔄 OTP resend request received:', { email: req.body.email, hasSessionId: !!req.body.sessionId });
+    
     var email = req.body.email;
     var sessionId = req.body.sessionId;
 
     if (!email || !sessionId) {
+      console.log('❌ Missing email or sessionId');
       return res.status(400).json({ message: 'Email and session ID are required.' });
     }
 
