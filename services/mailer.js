@@ -1,5 +1,4 @@
 var nodemailer = require('nodemailer');
-var https = require('https');
 
 var transporter = null;
 var transporterInitialized = false;
@@ -307,107 +306,11 @@ var buildContactEmail = function (context) {
   return { text, html };
 };
 
-// Send email using Resend API (works better with Render)
-var sendEmailViaResend = async function (to, from, subject, html, text) {
-  var resendApiKey = process.env.RESEND_API_KEY;
-  if (!resendApiKey) {
-    return null;
-  }
-
-  var postData = JSON.stringify({
-    from: from,
-    to: to,
-    subject: subject,
-    html: html,
-    text: text,
-  });
-
-  return new Promise(function (resolve, reject) {
-    var options = {
-      hostname: 'api.resend.com',
-      port: 443,
-      path: '/emails',
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + resendApiKey,
-        'Content-Length': Buffer.byteLength(postData),
-      },
-      timeout: 10000,
-    };
-
-    var req = https.request(options, function (res) {
-      var data = '';
-      res.on('data', function (chunk) {
-        data += chunk;
-      });
-      res.on('end', function () {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          try {
-            var response = data ? JSON.parse(data) : { id: 'sent' };
-            resolve(response);
-          } catch (parseError) {
-            resolve({ id: 'sent', raw: data });
-          }
-        } else {
-          var errorData = data ? (function() {
-            try {
-              return JSON.parse(data);
-            } catch (e) {
-              return { message: data };
-            }
-          })() : { message: 'Unknown error' };
-          reject(new Error('Resend API error: ' + res.statusCode + ' - ' + JSON.stringify(errorData)));
-        }
-      });
-    });
-
-    req.on('error', function (error) {
-      reject(error);
-    });
-
-    req.on('timeout', function () {
-      req.destroy();
-      reject(new Error('Resend API timeout'));
-    });
-
-    req.write(postData);
-    req.end();
-  });
-};
-
 var sendContributionConfirmation = async function (recipientEmail, context) {
-  var from = process.env.MAIL_FROM || process.env.SMTP_USER || 'onboarding@resend.dev';
+  var from = process.env.MAIL_FROM || process.env.SMTP_USER;
   var subject = process.env.CONTRIBUTION_MAIL_SUBJECT || 'Thank you for your contribution submission';
   var content = buildContributionEmail(context || {});
 
-  // Try Resend API first (if API key is set)
-  var resendApiKey = process.env.RESEND_API_KEY;
-  if (resendApiKey) {
-    try {
-      // Use RESEND_FROM if set, otherwise use onboarding@resend.dev (Resend's default verified domain)
-      // Don't use Gmail addresses as Resend requires domain verification
-      var resendFrom = process.env.RESEND_FROM;
-      if (!resendFrom || resendFrom.includes('@gmail.com') || resendFrom.includes('@yahoo.com') || resendFrom.includes('@hotmail.com')) {
-        resendFrom = 'onboarding@resend.dev'; // Resend's default verified domain
-      }
-      var result = await Promise.race([
-        sendEmailViaResend(recipientEmail, resendFrom, subject, content.html, content.text),
-        new Promise(function (_, reject) {
-          setTimeout(function () {
-            reject(new Error('Resend API timeout after 8 seconds'));
-          }, 8000);
-        })
-      ]);
-      console.log('✅ Contribution confirmation email sent via Resend to:', recipientEmail);
-      return;
-    } catch (resendError) {
-      console.warn('⚠️ Resend API failed, falling back to SMTP:', resendError.message);
-      // Fall through to SMTP
-    }
-  }
-
-  // Fallback to SMTP
   var mailTransporter = getTransporter();
   if (!mailTransporter) {
     console.warn('Email transporter not available. Skipping contribution confirmation email.');
@@ -434,8 +337,7 @@ var sendContributionConfirmation = async function (recipientEmail, context) {
   } catch (error) {
     // Log detailed error for debugging
     if (error.code === 'ETIMEDOUT' || error.message.includes('timeout')) {
-      console.warn('⚠️ Email send timeout (non-critical) - Gmail SMTP may be blocked by Render:', recipientEmail);
-      console.warn('💡 Tip: Set RESEND_API_KEY in Render environment variables for reliable email delivery');
+      console.warn('⚠️ Email send timeout (non-critical):', recipientEmail);
     } else if (error.code === 'EAUTH') {
       console.warn('⚠️ Email authentication failed - Check SMTP_USER and SMTP_PASS (use Gmail App Password):', error.message);
     } else {
@@ -578,37 +480,10 @@ var buildAdminContactEmail = function (context) {
 };
 
 var sendContactConfirmation = async function (recipientEmail, context) {
-  var from = process.env.MAIL_FROM || process.env.SMTP_USER || 'onboarding@resend.dev';
+  var from = process.env.MAIL_FROM || process.env.SMTP_USER;
   var subject = process.env.CONTACT_MAIL_SUBJECT || 'Thank you for contacting us';
   var content = buildContactEmail(context || {});
 
-  // Try Resend API first (if API key is set)
-  var resendApiKey = process.env.RESEND_API_KEY;
-  if (resendApiKey) {
-    try {
-      // Use RESEND_FROM if set, otherwise use onboarding@resend.dev (Resend's default verified domain)
-      // Don't use Gmail addresses as Resend requires domain verification
-      var resendFrom = process.env.RESEND_FROM;
-      if (!resendFrom || resendFrom.includes('@gmail.com') || resendFrom.includes('@yahoo.com') || resendFrom.includes('@hotmail.com')) {
-        resendFrom = 'onboarding@resend.dev'; // Resend's default verified domain
-      }
-      var result = await Promise.race([
-        sendEmailViaResend(recipientEmail, resendFrom, subject, content.html, content.text),
-        new Promise(function (_, reject) {
-          setTimeout(function () {
-            reject(new Error('Resend API timeout after 8 seconds'));
-          }, 8000);
-        })
-      ]);
-      console.log('✅ Contact confirmation email sent via Resend to:', recipientEmail);
-      return;
-    } catch (resendError) {
-      console.warn('⚠️ Resend API failed, falling back to SMTP:', resendError.message);
-      // Fall through to SMTP
-    }
-  }
-
-  // Fallback to SMTP
   var mailTransporter = getTransporter();
   if (!mailTransporter) {
     console.warn('Email transporter not available. Skipping contact confirmation email.');
@@ -635,7 +510,6 @@ var sendContactConfirmation = async function (recipientEmail, context) {
     // Log as warning, not error, since email is non-critical
     if (error.code === 'ETIMEDOUT' || error.message.includes('timeout')) {
       console.warn('⚠️ Email send timeout (non-critical):', recipientEmail);
-      console.warn('💡 Tip: Set RESEND_API_KEY in Render environment variables for reliable email delivery');
     } else {
       console.warn('⚠️ Failed to send contact confirmation email (non-critical):', error.message);
     }
@@ -644,37 +518,10 @@ var sendContactConfirmation = async function (recipientEmail, context) {
 };
 
 var sendAdminContactNotification = async function (adminEmail, context) {
-  var from = process.env.MAIL_FROM || process.env.SMTP_USER || 'onboarding@resend.dev';
+  var from = process.env.MAIL_FROM || process.env.SMTP_USER;
   var subject = process.env.ADMIN_CONTACT_MAIL_SUBJECT || 'New Contact Form Submission';
   var content = buildAdminContactEmail(context || {});
 
-  // Try Resend API first (if API key is set)
-  var resendApiKey = process.env.RESEND_API_KEY;
-  if (resendApiKey) {
-    try {
-      // Use RESEND_FROM if set, otherwise use onboarding@resend.dev (Resend's default verified domain)
-      // Don't use Gmail addresses as Resend requires domain verification
-      var resendFrom = process.env.RESEND_FROM;
-      if (!resendFrom || resendFrom.includes('@gmail.com') || resendFrom.includes('@yahoo.com') || resendFrom.includes('@hotmail.com')) {
-        resendFrom = 'onboarding@resend.dev'; // Resend's default verified domain
-      }
-      var result = await Promise.race([
-        sendEmailViaResend(adminEmail, resendFrom, subject, content.html, content.text),
-        new Promise(function (_, reject) {
-          setTimeout(function () {
-            reject(new Error('Resend API timeout after 8 seconds'));
-          }, 8000);
-        })
-      ]);
-      console.log('✅ Admin contact notification email sent via Resend to:', adminEmail);
-      return;
-    } catch (resendError) {
-      console.warn('⚠️ Resend API failed, falling back to SMTP:', resendError.message);
-      // Fall through to SMTP
-    }
-  }
-
-  // Fallback to SMTP
   var mailTransporter = getTransporter();
   if (!mailTransporter) {
     console.warn('Email transporter not available. Skipping admin notification email.');
@@ -701,7 +548,6 @@ var sendAdminContactNotification = async function (adminEmail, context) {
     // Log as warning, not error, since email is non-critical
     if (error.code === 'ETIMEDOUT' || error.message.includes('timeout')) {
       console.warn('⚠️ Email send timeout (non-critical):', adminEmail);
-      console.warn('💡 Tip: Set RESEND_API_KEY in Render environment variables for reliable email delivery');
     } else {
       console.warn('⚠️ Failed to send admin notification email (non-critical):', error.message);
     }
