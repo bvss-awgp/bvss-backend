@@ -3,6 +3,7 @@ var bcrypt = require('bcryptjs');
 var jwt = require('jsonwebtoken');
 var User = require('../models/User');
 var requireAuth = require('../middleware/auth');
+var { sendWelcomeEmail, sendLoginNotification } = require('../services/mailer');
 
 var router = express.Router();
 
@@ -45,6 +46,11 @@ router.post('/signup', async function (req, res) {
 
     var token = createToken(user._id);
 
+    // Send welcome email (non-blocking)
+    sendWelcomeEmail(email).catch(function() {
+      // Error already logged in mailer service
+    });
+
     return res.status(201).json({
       token,
       user: user.toSafeObject(),
@@ -79,6 +85,11 @@ router.post('/login', async function (req, res) {
     }
 
     var token = createToken(user._id);
+
+    // Send login notification email (non-blocking)
+    sendLoginNotification(email).catch(function() {
+      // Error already logged in mailer service
+    });
 
     return res.json({
       token,
