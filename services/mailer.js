@@ -337,15 +337,29 @@ var buildContactEmail = function (context) {
 var sendEmailViaBrevo = async function (to, from, subject, html, text) {
   var brevoApiKey = process.env.BREVO_API_KEY;
   if (!brevoApiKey) {
+    console.warn('⚠️ BREVO_API_KEY environment variable is not set');
     return null;
   }
 
   // Trim whitespace from API key
   brevoApiKey = brevoApiKey.trim();
 
-  // Validate API key format (Brevo keys typically start with 'xkeysib-')
-  if (!brevoApiKey.startsWith('xkeysib-') && !brevoApiKey.startsWith('xkeysib_')) {
-    console.warn('⚠️ Brevo API key format may be incorrect. Expected format: xkeysib-...');
+  // Debug: Log first few characters (for troubleshooting, but don't log full key)
+  var keyPreview = brevoApiKey.length > 10 ? brevoApiKey.substring(0, 10) + '...' : '***';
+  console.log('🔑 Using Brevo API key (preview):', keyPreview, 'Length:', brevoApiKey.length);
+
+  // Validate API key format (Brevo API keys start with 'xkeysib-' and are typically 60+ characters)
+  if (!brevoApiKey.startsWith('xkeysib-')) {
+    console.error('❌ Brevo API key format is incorrect!');
+    console.error('   Expected format: xkeysib-... (starts with "xkeysib-")');
+    console.error('   Your key starts with:', brevoApiKey.substring(0, Math.min(20, brevoApiKey.length)));
+    console.error('   Make sure you are using the API KEY (not SMTP key) from Brevo dashboard');
+    console.error('   Location: Settings → SMTP & API → API Keys section');
+    throw new Error('Invalid Brevo API key format. Must start with "xkeysib-"');
+  }
+
+  if (brevoApiKey.length < 50) {
+    console.warn('⚠️ Brevo API key seems too short. Typical API keys are 60+ characters.');
   }
 
   var postData = JSON.stringify({
@@ -447,12 +461,23 @@ var sendContributionConfirmation = async function (recipientEmail, context) {
       return;
     } catch (brevoError) {
       console.warn('⚠️ Brevo API failed, falling back to SMTP:', brevoError.message);
-      if (brevoError.message.includes('401') || brevoError.message.includes('Invalid API key')) {
-        console.warn('💡 To fix: Go to https://app.brevo.com/ → Settings → SMTP & API → Generate a new API key');
-        console.warn('   Then set BREVO_API_KEY in Render environment variables');
+      if (brevoError.message.includes('401') || brevoError.message.includes('Invalid API key') || brevoError.message.includes('Invalid Brevo API key format')) {
+        console.warn('');
+        console.warn('🔧 HOW TO FIX BREVO API KEY ISSUE:');
+        console.warn('   1. Go to: https://app.brevo.com/');
+        console.warn('   2. Navigate to: Settings → SMTP & API');
+        console.warn('   3. Scroll to "API Keys" section (NOT "SMTP" section)');
+        console.warn('   4. Click "Generate a new API key"');
+        console.warn('   5. Copy the ENTIRE key (starts with xkeysib-, usually 60+ characters)');
+        console.warn('   6. In Render: Environment → Add BREVO_API_KEY → Paste the key');
+        console.warn('   7. Make sure there are NO spaces or quotes around the key');
+        console.warn('   8. Restart your Render service');
+        console.warn('');
       }
       // Fall through to SMTP
     }
+  } else {
+    console.warn('ℹ️ BREVO_API_KEY not set. Using SMTP (may timeout on Render).');
   }
 
   // Fallback to SMTP
