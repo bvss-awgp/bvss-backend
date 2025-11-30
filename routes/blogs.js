@@ -1,6 +1,9 @@
 var express = require('express');
 var Blog = require('../models/Blog');
+var BlogLike = require('../models/BlogLike');
+var BlogComment = require('../models/BlogComment');
 var requireAdmin = require('../middleware/adminAuth');
+var requireAuth = require('../middleware/auth');
 
 var router = express.Router();
 
@@ -36,6 +39,160 @@ router.get('/', async function (req, res) {
   }
 });
 
+// POST /blogs/:slug/like - Like a blog (requires auth)
+router.post('/:slug/like', requireAuth, async function (req, res) {
+  try {
+    var slug = req.params.slug;
+    var userId = req.auth.userId;
+
+    var blog = await Blog.findOne({ slug: slug, is_published: true });
+    if (!blog) {
+      return res.status(404).json({ message: 'Blog not found.' });
+    }
+
+    // Check if user already liked this blog
+    var existingLike = await BlogLike.findOne({ blog: blog._id, user: userId });
+    if (existingLike) {
+      return res.status(400).json({ message: 'Blog already liked.' });
+    }
+
+    // Create like
+    await BlogLike.create({
+      blog: blog._id,
+      user: userId,
+    });
+
+    return res.json({ message: 'Blog liked successfully.' });
+  } catch (error) {
+    console.error('Like blog error:', error);
+    if (error.code === 11000) {
+      return res.status(400).json({ message: 'Blog already liked.' });
+    }
+    return res.status(500).json({ message: 'Unable to like blog.' });
+  }
+});
+
+// DELETE /blogs/:slug/like - Unlike a blog (requires auth)
+router.delete('/:slug/like', requireAuth, async function (req, res) {
+  try {
+    var slug = req.params.slug;
+    var userId = req.auth.userId;
+
+    var blog = await Blog.findOne({ slug: slug, is_published: true });
+    if (!blog) {
+      return res.status(404).json({ message: 'Blog not found.' });
+    }
+
+    // Remove like
+    var result = await BlogLike.deleteOne({ blog: blog._id, user: userId });
+    
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ message: 'Like not found.' });
+    }
+
+    return res.json({ message: 'Blog unliked successfully.' });
+  } catch (error) {
+    console.error('Unlike blog error:', error);
+    return res.status(500).json({ message: 'Unable to unlike blog.' });
+  }
+});
+
+// GET /blogs/:slug/comments - Get comments for a blog
+router.get('/:slug/comments', async function (req, res) {
+  try {
+    var slug = req.params.slug;
+    var page = parseInt(req.query.page) || 1;
+    var limit = parseInt(req.query.limit) || 20;
+    var skip = (page - 1) * limit;
+
+    var blog = await Blog.findOne({ slug: slug, is_published: true });
+    if (!blog) {
+      return res.status(404).json({ message: 'Blog not found.' });
+    }
+
+    var comments = await BlogComment.find({ blog: blog._id })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    var totalComments = await BlogComment.countDocuments({ blog: blog._id });
+
+    return res.json({
+      comments: comments.map(function(comment) {
+        return {
+          id: comment._id,
+          userName: comment.userName,
+          content: comment.content,
+          createdAt: comment.createdAt,
+        };
+      }),
+      pagination: {
+        page: page,
+        limit: limit,
+        total: totalComments,
+        pages: Math.ceil(totalComments / limit),
+      },
+    });
+  } catch (error) {
+    console.error('Fetch comments error:', error);
+    return res.status(500).json({ message: 'Unable to fetch comments.' });
+  }
+});
+
+// POST /blogs/:slug/comments - Post a comment (requires auth)
+router.post('/:slug/comments', requireAuth, async function (req, res) {
+  try {
+    var slug = req.params.slug;
+    var userId = req.auth.userId;
+    var content = req.body.content;
+
+    if (!content || !content.trim()) {
+      return res.status(400).json({ message: 'Comment content is required.' });
+    }
+
+    if (content.trim().length > 1000) {
+      return res.status(400).json({ message: 'Comment must be 1000 characters or less.' });
+    }
+
+    var blog = await Blog.findOne({ slug: slug, is_published: true });
+    if (!blog) {
+      return res.status(404).json({ message: 'Blog not found.' });
+    }
+
+    // Get user email for userName
+    var User = require('../models/User');
+    var user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    // Extract name from email (before @) or use email
+    var userName = user.email.split('@')[0];
+
+    // Create comment
+    var comment = await BlogComment.create({
+      blog: blog._id,
+      user: userId,
+      userName: userName,
+      content: content.trim(),
+    });
+
+    return res.status(201).json({
+      comment: {
+        id: comment._id,
+        userName: comment.userName,
+        content: comment.content,
+        createdAt: comment.createdAt,
+      },
+      message: 'Comment posted successfully.',
+    });
+  } catch (error) {
+    console.error('Post comment error:', error);
+    return res.status(500).json({ message: 'Unable to post comment.' });
+  }
+});
+
 // GET /blogs/:slug - Get a single blog by slug
 router.get('/:slug', async function (req, res) {
   try {
@@ -45,6 +202,39 @@ router.get('/:slug', async function (req, res) {
     if (!blog) {
       return res.status(404).json({ message: 'Blog not found.' });
     }
+
+    // Get like count
+    var likeCount = await BlogLike.countDocuments({ blog: blog._id });
+
+    // Get comment count
+    var commentCount = await BlogComment.countDocuments({ blog: blog._id });
+
+    // Check if user liked this blog (if authenticated)
+    var userLiked = false;
+    var authHeader = req.headers.authorization || '';
+    if (authHeader.startsWith('Bearer ')) {
+      try {
+        var jwt = require('jsonwebtoken');
+        var User = require('../models/User');
+        var token = authHeader.substring(7).trim();
+        var jwtSecret = process.env.JWT_SECRET;
+        if (jwtSecret) {
+          var payload = jwt.verify(token, jwtSecret);
+          if (payload && payload.sub) {
+            var existingLike = await BlogLike.findOne({ blog: blog._id, user: payload.sub });
+            userLiked = !!existingLike;
+          }
+        }
+      } catch (authError) {
+        // If auth fails, just continue without userLiked
+        console.log('Auth check failed (non-critical):', authError.message);
+      }
+    }
+
+    // Add like count, comment count, and userLiked to blog object
+    blog.likeCount = likeCount;
+    blog.commentCount = commentCount;
+    blog.userLiked = userLiked;
 
     return res.json({ blog });
   } catch (error) {
