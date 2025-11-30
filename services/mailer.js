@@ -340,6 +340,14 @@ var sendEmailViaBrevo = async function (to, from, subject, html, text) {
     return null;
   }
 
+  // Trim whitespace from API key
+  brevoApiKey = brevoApiKey.trim();
+
+  // Validate API key format (Brevo keys typically start with 'xkeysib-')
+  if (!brevoApiKey.startsWith('xkeysib-') && !brevoApiKey.startsWith('xkeysib_')) {
+    console.warn('⚠️ Brevo API key format may be incorrect. Expected format: xkeysib-...');
+  }
+
   var postData = JSON.stringify({
     sender: {
       email: from,
@@ -364,6 +372,7 @@ var sendEmailViaBrevo = async function (to, from, subject, html, text) {
       headers: {
         'Content-Type': 'application/json',
         'api-key': brevoApiKey,
+        'Accept': 'application/json',
         'Content-Length': Buffer.byteLength(postData),
       },
       timeout: 30000,
@@ -390,7 +399,15 @@ var sendEmailViaBrevo = async function (to, from, subject, html, text) {
               return { message: data };
             }
           })() : { message: 'Unknown error' };
-          reject(new Error('Brevo API error: ' + res.statusCode + ' - ' + JSON.stringify(errorData)));
+          
+          // Provide helpful error messages
+          if (res.statusCode === 401) {
+            reject(new Error('Brevo API error: 401 Unauthorized - Invalid API key. Please check your BREVO_API_KEY environment variable. Make sure it starts with "xkeysib-" and is copied correctly from Brevo dashboard.'));
+          } else if (res.statusCode === 400) {
+            reject(new Error('Brevo API error: 400 Bad Request - ' + JSON.stringify(errorData)));
+          } else {
+            reject(new Error('Brevo API error: ' + res.statusCode + ' - ' + JSON.stringify(errorData)));
+          }
         }
       });
     });
@@ -430,6 +447,10 @@ var sendContributionConfirmation = async function (recipientEmail, context) {
       return;
     } catch (brevoError) {
       console.warn('⚠️ Brevo API failed, falling back to SMTP:', brevoError.message);
+      if (brevoError.message.includes('401') || brevoError.message.includes('Invalid API key')) {
+        console.warn('💡 To fix: Go to https://app.brevo.com/ → Settings → SMTP & API → Generate a new API key');
+        console.warn('   Then set BREVO_API_KEY in Render environment variables');
+      }
       // Fall through to SMTP
     }
   }
@@ -630,6 +651,10 @@ var sendContactConfirmation = async function (recipientEmail, context) {
       return;
     } catch (brevoError) {
       console.warn('⚠️ Brevo API failed, falling back to SMTP:', brevoError.message);
+      if (brevoError.message.includes('401') || brevoError.message.includes('Invalid API key')) {
+        console.warn('💡 To fix: Go to https://app.brevo.com/ → Settings → SMTP & API → Generate a new API key');
+        console.warn('   Then set BREVO_API_KEY in Render environment variables');
+      }
       // Fall through to SMTP
     }
   }
@@ -690,6 +715,10 @@ var sendAdminContactNotification = async function (adminEmail, context) {
       return;
     } catch (brevoError) {
       console.warn('⚠️ Brevo API failed, falling back to SMTP:', brevoError.message);
+      if (brevoError.message.includes('401') || brevoError.message.includes('Invalid API key')) {
+        console.warn('💡 To fix: Go to https://app.brevo.com/ → Settings → SMTP & API → Generate a new API key');
+        console.warn('   Then set BREVO_API_KEY in Render environment variables');
+      }
       // Fall through to SMTP
     }
   }
