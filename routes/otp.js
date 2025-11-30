@@ -38,7 +38,9 @@ var generateSessionId = function () {
 // Send OTP endpoint
 router.post('/send', async function (req, res) {
   try {
-    console.log('📧 OTP send request received:', { email: req.body.email, hasPassword: !!req.body.password, hasName: !!req.body.name });
+    console.log('📧 OTP send POST request received');
+    console.log('Request body:', { email: req.body?.email, hasPassword: !!req.body?.password, hasName: !!req.body?.name });
+    console.log('Request headers:', req.headers);
     
     var email = req.body.email;
     var password = req.body.password;
@@ -89,7 +91,7 @@ router.post('/send', async function (req, res) {
       // Don't fail the request if email fails
     });
 
-    console.log('OTP sent to:', email, 'Session ID:', sessionId);
+    console.log('✅ OTP generated and stored. Email:', email, 'Session ID:', sessionId, 'OTP:', otp);
 
     return res.status(200).json({
       message: 'OTP sent successfully.',
