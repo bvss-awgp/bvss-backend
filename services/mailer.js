@@ -52,6 +52,19 @@ var getTransporter = function () {
       transportConfig.requireTLS = true;
     }
 
+    // Add TLS config for Brevo (formerly Sendinblue)
+    if (smtpHost.includes('brevo.com') || smtpHost.includes('sendinblue')) {
+      transportConfig.tls = {
+        rejectUnauthorized: false,
+      };
+      transportConfig.requireTLS = true;
+      // Brevo uses port 587 with TLS
+      if (!process.env.SMTP_PORT) {
+        transportConfig.port = 587;
+        transportConfig.secure = false;
+      }
+    }
+
     transporter = nodemailer.createTransport(transportConfig);
 
     // Verify connection (async, don't block)
