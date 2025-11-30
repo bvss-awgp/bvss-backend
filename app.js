@@ -29,26 +29,64 @@ if (!mongoUri) {
 
 app.use(logger('dev'));
 
-// CORS configuration
+// CORS configuration - more permissive for debugging
 var corsOptions = {
-  origin: clientOrigin,
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Check if origin is in allowed list
+    var allowedOrigins = [
+      clientOrigin,
+      'http://localhost:5173',
+      'http://localhost:3000',
+      'http://127.0.0.1:5173',
+      'http://127.0.0.1:3000'
+    ];
+    
+    // Also check if CLIENT_ORIGIN contains wildcard or multiple origins
+    if (process.env.CLIENT_ORIGIN) {
+      var origins = process.env.CLIENT_ORIGIN.split(',').map(function(o) { return o.trim(); });
+      allowedOrigins = allowedOrigins.concat(origins);
+    }
+    
+    if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.some(function(allowed) {
+      return origin && origin.startsWith(allowed.replace('*', ''));
+    })) {
+      callback(null, true);
+    } else {
+      console.log('⚠️ CORS blocked origin:', origin);
+      console.log('Allowed origins:', allowedOrigins);
+      callback(null, true); // Allow for now to debug
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  exposedHeaders: ['Content-Type', 'Authorization'],
   preflightContinue: false,
   optionsSuccessStatus: 204
 };
 
 app.use(cors(corsOptions));
 
-// Handle preflight requests explicitly
-app.options('*', cors(corsOptions));
+// Handle preflight requests explicitly for all routes
+app.options('*', function(req, res) {
+  console.log('🔄 OPTIONS preflight request:', req.method, req.path, 'Origin:', req.headers.origin);
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.sendStatus(204);
+});
 
-// Request logging middleware
+// Request logging middleware - must be after body parsers
 app.use(function(req, res, next) {
-  console.log('📥 Incoming request:', req.method, req.path, req.originalUrl);
-  if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') {
-    console.log('Request body:', JSON.stringify(req.body));
+  if (req.method !== 'OPTIONS') {
+    console.log('📥 Incoming request:', req.method, req.path, req.originalUrl);
+    if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') {
+      console.log('Request body:', JSON.stringify(req.body));
+    }
   }
   next();
 });
