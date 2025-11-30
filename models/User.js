@@ -13,6 +13,11 @@ var userSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    name: {
+      type: String,
+      trim: true,
+      default: '',
+    },
     isAdmin: {
       type: Boolean,
       default: false,
@@ -28,6 +33,7 @@ userSchema.methods.toSafeObject = function () {
   return {
     id: this._id,
     email: this.email,
+    name: this.name || '',
     isAdmin: this.isAdmin || false,
     createdAt: this.createdAt,
     updatedAt: this.updatedAt,

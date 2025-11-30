@@ -158,6 +158,7 @@ router.post('/verify', async function (req, res) {
     var user = await User.create({
       email: otpRecord.email,
       passwordHash: otpRecord.passwordHash,
+      name: otpRecord.name || '',
     });
 
     // Mark OTP as verified
