@@ -56,6 +56,7 @@ var getTransporter = function () {
     if (smtpHost.includes('brevo.com') || smtpHost.includes('sendinblue')) {
       transportConfig.tls = {
         rejectUnauthorized: false,
+        ciphers: 'SSLv3'
       };
       transportConfig.requireTLS = true;
       // Brevo uses port 587 with TLS
@@ -63,6 +64,9 @@ var getTransporter = function () {
         transportConfig.port = 587;
         transportConfig.secure = false;
       }
+      // Increase timeouts for Brevo
+      transportConfig.connectionTimeout = 30000;
+      transportConfig.socketTimeout = 30000;
     }
 
     transporter = nodemailer.createTransport(transportConfig);
@@ -71,8 +75,17 @@ var getTransporter = function () {
     transporter.verify(function(error, success) {
       if (error) {
         console.warn('SMTP connection verification failed (emails may still work):', error.message);
+        if (error.code === 'ETIMEDOUT' || error.code === 'ECONNRESET' || error.code === 'ENOTFOUND') {
+          console.warn('💡 Connection issue detected. Possible causes:');
+          console.warn('   1. SMTP_HOST might be incorrect. For Brevo, use: smtp-relay.brevo.com');
+          console.warn('   2. Render may be blocking outbound SMTP connections');
+          console.warn('   3. Check SMTP_PORT (should be 587 for Brevo)');
+          console.warn('   4. Verify SMTP_USER and SMTP_PASS are correct');
+        }
       } else {
-        console.log('SMTP server is ready to send emails');
+        console.log('✅ SMTP server is ready to send emails');
+        console.log('   Host:', smtpHost);
+        console.log('   Port:', smtpPort);
       }
     });
   } catch (error) {
@@ -341,8 +354,8 @@ var sendContributionConfirmation = async function (recipientEmail, context) {
       }),
       new Promise(function (_, reject) {
         setTimeout(function () {
-          reject(new Error('Email send timeout after 8 seconds'));
-        }, 8000);
+          reject(new Error('Email send timeout after 30 seconds'));
+        }, 30000); // Increased timeout to 30 seconds
       })
     ]);
     console.log('✅ Contribution confirmation email sent successfully to:', recipientEmail);
@@ -351,8 +364,14 @@ var sendContributionConfirmation = async function (recipientEmail, context) {
     // Log detailed error for debugging
     if (error.code === 'ETIMEDOUT' || error.message.includes('timeout')) {
       console.warn('⚠️ Email send timeout (non-critical):', recipientEmail);
+      console.warn('💡 This might indicate:');
+      console.warn('   - Render is blocking outbound SMTP connections');
+      console.warn('   - SMTP server is unreachable or slow');
+      console.warn('   - Check SMTP_HOST and SMTP_PORT settings');
     } else if (error.code === 'EAUTH') {
-      console.warn('⚠️ Email authentication failed - Check SMTP_USER and SMTP_PASS (use Gmail App Password):', error.message);
+      console.warn('⚠️ Email authentication failed - Check SMTP_USER and SMTP_PASS:', error.message);
+    } else if (error.code === 'ENOTFOUND') {
+      console.warn('⚠️ SMTP host not found - Check SMTP_HOST setting:', error.message);
     } else {
       console.warn('⚠️ Failed to send contribution confirmation email (non-critical):', error.message);
       if (error.code) {
@@ -514,8 +533,8 @@ var sendContactConfirmation = async function (recipientEmail, context) {
       }),
       new Promise(function (_, reject) {
         setTimeout(function () {
-          reject(new Error('Email send timeout after 8 seconds'));
-        }, 8000);
+          reject(new Error('Email send timeout after 30 seconds'));
+        }, 30000); // Increased timeout to 30 seconds
       })
     ]);
     console.log('✅ Contact confirmation email sent successfully to:', recipientEmail);
@@ -523,6 +542,7 @@ var sendContactConfirmation = async function (recipientEmail, context) {
     // Log as warning, not error, since email is non-critical
     if (error.code === 'ETIMEDOUT' || error.message.includes('timeout')) {
       console.warn('⚠️ Email send timeout (non-critical):', recipientEmail);
+      console.warn('💡 Check SMTP_HOST and SMTP_PORT settings');
     } else {
       console.warn('⚠️ Failed to send contact confirmation email (non-critical):', error.message);
     }
@@ -552,8 +572,8 @@ var sendAdminContactNotification = async function (adminEmail, context) {
       }),
       new Promise(function (_, reject) {
         setTimeout(function () {
-          reject(new Error('Email send timeout after 8 seconds'));
-        }, 8000);
+          reject(new Error('Email send timeout after 30 seconds'));
+        }, 30000); // Increased timeout to 30 seconds
       })
     ]);
     console.log('✅ Admin contact notification email sent successfully to:', adminEmail);
@@ -561,6 +581,7 @@ var sendAdminContactNotification = async function (adminEmail, context) {
     // Log as warning, not error, since email is non-critical
     if (error.code === 'ETIMEDOUT' || error.message.includes('timeout')) {
       console.warn('⚠️ Email send timeout (non-critical):', adminEmail);
+      console.warn('💡 Check SMTP_HOST and SMTP_PORT settings');
     } else {
       console.warn('⚠️ Failed to send admin notification email (non-critical):', error.message);
     }
