@@ -60,8 +60,14 @@ router.post('/:slug/like', requireAuth, async function (req, res) {
     // Check if user already liked this blog
     var existingLike = await BlogLike.findOne({ blog: blog._id, user: userId });
     if (existingLike) {
-      console.log('⚠️ User already liked this blog');
-      return res.status(400).json({ message: 'Blog already liked.' });
+      console.log('⚠️ User already liked this blog - state may be out of sync');
+      // Return 200 with a message instead of 400, so frontend can refresh state
+      // Or return 400 but with more context
+      return res.status(400).json({ 
+        message: 'Blog already liked.',
+        code: 'ALREADY_LIKED',
+        alreadyLiked: true
+      });
     }
 
     // Create like
@@ -76,7 +82,11 @@ router.post('/:slug/like', requireAuth, async function (req, res) {
   } catch (error) {
     console.error('❌ Like blog error:', error);
     if (error.code === 11000) {
-      return res.status(400).json({ message: 'Blog already liked.' });
+      return res.status(400).json({ 
+        message: 'Blog already liked.',
+        code: 'ALREADY_LIKED',
+        alreadyLiked: true
+      });
     }
     return res.status(500).json({ message: 'Unable to like blog.', error: process.env.NODE_ENV === 'development' ? error.message : undefined });
   }
