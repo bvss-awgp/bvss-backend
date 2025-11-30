@@ -1,4 +1,5 @@
 var express = require('express');
+var mongoose = require('mongoose');
 var Blog = require('../models/Blog');
 var BlogLike = require('../models/BlogLike');
 var BlogComment = require('../models/BlogComment');
@@ -48,6 +49,14 @@ router.post('/:slug/like', requireAuth, async function (req, res) {
     
     console.log('Slug:', slug);
     console.log('User ID:', userId);
+    console.log('User ID type:', typeof userId);
+    console.log('User ID value:', userId?.toString());
+
+    // Validate userId
+    if (!userId) {
+      console.error('❌ User ID is missing or invalid');
+      return res.status(401).json({ message: 'User authentication required.' });
+    }
 
     var blog = await Blog.findOne({ slug: slug, is_published: true });
     if (!blog) {
@@ -56,6 +65,14 @@ router.post('/:slug/like', requireAuth, async function (req, res) {
     }
 
     console.log('✅ Blog found:', blog._id, blog.title);
+    console.log('Blog ID type:', typeof blog._id);
+    console.log('Blog ID value:', blog._id?.toString());
+
+    // Validate blog._id
+    if (!blog._id) {
+      console.error('❌ Blog ID is missing or invalid');
+      return res.status(500).json({ message: 'Invalid blog data.' });
+    }
 
     // Check if user already liked this blog
     var existingLike = await BlogLike.findOne({ blog: blog._id, user: userId });
@@ -70,11 +87,68 @@ router.post('/:slug/like', requireAuth, async function (req, res) {
       });
     }
 
-    // Create like
-    var like = await BlogLike.create({
-      blog: blog._id,
-      user: userId,
-    });
+    // Ensure both IDs are valid ObjectIds before creating
+    if (!mongoose.Types.ObjectId.isValid(blog._id)) {
+      console.error('❌ Invalid blog ObjectId:', blog._id);
+      return res.status(500).json({ message: 'Invalid blog ID format.' });
+    }
+    
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      console.error('❌ Invalid user ObjectId:', userId);
+      return res.status(401).json({ message: 'Invalid user ID format.' });
+    }
+
+    // Convert to ObjectId explicitly to ensure proper format
+    var blogObjectId;
+    var userObjectId;
+    
+    try {
+      blogObjectId = mongoose.Types.ObjectId.isValid(blog._id) ? new mongoose.Types.ObjectId(blog._id) : blog._id;
+      userObjectId = mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : userId;
+      
+      if (!blogObjectId || !userObjectId) {
+        console.error('❌ Failed to convert IDs to ObjectId');
+        console.error('Blog ID:', blog._id, 'Type:', typeof blog._id);
+        console.error('User ID:', userId, 'Type:', typeof userId);
+        return res.status(500).json({ message: 'Invalid ID format.' });
+      }
+      
+      console.log('Creating like with Blog ID:', blogObjectId.toString(), 'User ID:', userObjectId.toString());
+    } catch (idError) {
+      console.error('❌ Error converting IDs:', idError);
+      return res.status(500).json({ message: 'Error processing request data.' });
+    }
+
+    // Create like with explicit ObjectId conversion
+    try {
+      var like = await BlogLike.create({
+        blog: blogObjectId,
+        user: userObjectId,
+      });
+      console.log('✅ Like created successfully:', like._id);
+    } catch (createError) {
+      console.error('❌ Error creating like:', createError);
+      // If it's a duplicate key error, check if the like actually exists
+      if (createError.code === 11000) {
+        // Try to find the existing like
+        var existingLikeCheck = await BlogLike.findOne({ blog: blogObjectId, user: userObjectId });
+        if (existingLikeCheck) {
+          console.log('⚠️ Like already exists (duplicate key error)');
+          return res.status(400).json({ 
+            message: 'Blog already liked.',
+            code: 'ALREADY_LIKED',
+            alreadyLiked: true
+          });
+        }
+        // If like doesn't exist but we got duplicate key error, it might be an index issue
+        console.error('⚠️ Duplicate key error but like not found - possible index issue');
+        return res.status(500).json({ 
+          message: 'Database error. Please try again.',
+          code: 'DATABASE_ERROR'
+        });
+      }
+      throw createError; // Re-throw if it's not a duplicate key error
+    }
 
     console.log('✅ Like created successfully:', like._id);
 
