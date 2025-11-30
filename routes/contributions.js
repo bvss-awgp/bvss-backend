@@ -71,6 +71,12 @@ router.post('/', async function (req, res) {
 
         if (incompleteTopics.length > 0) {
           selectedTopic = incompleteTopics[0];
+          
+          // Mark topic as "Allotted" so it won't be assigned to another user
+          await Repository.findByIdAndUpdate(selectedTopic._id, {
+            status: 'Allotted'
+          });
+          console.log('✅ Topic marked as Allotted (update):', selectedTopic._id, selectedTopic.topicName);
         }
       } catch (topicError) {
         console.error('Failed to fetch topic from repository:', topicError);
@@ -151,6 +157,12 @@ router.post('/', async function (req, res) {
 
       if (incompleteTopics.length > 0) {
         selectedTopic = incompleteTopics[0];
+        
+        // Mark topic as "Allotted" so it won't be assigned to another user
+        await Repository.findByIdAndUpdate(selectedTopic._id, {
+          status: 'Allotted'
+        });
+        console.log('✅ Topic marked as Allotted:', selectedTopic._id, selectedTopic.topicName);
       }
     } catch (topicError) {
       console.error('Failed to fetch topic from repository:', topicError);

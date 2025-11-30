@@ -14,7 +14,7 @@ var repositorySchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['Complete', 'Incomplete'],
+      enum: ['Complete', 'Incomplete', 'Allotted'],
       default: 'Incomplete',
     },
   },

@@ -143,8 +143,8 @@ router.patch('/repositories/:id/status', async function (req, res) {
     var repositoryId = req.params.id;
     var newStatus = req.body.status;
 
-    if (!newStatus || !['Complete', 'Incomplete'].includes(newStatus)) {
-      return res.status(400).json({ message: 'Invalid status. Must be "Complete" or "Incomplete".' });
+    if (!newStatus || !['Complete', 'Incomplete', 'Allotted'].includes(newStatus)) {
+      return res.status(400).json({ message: 'Invalid status. Must be "Complete", "Incomplete", or "Allotted".' });
     }
 
     var repository = await Repository.findByIdAndUpdate(
@@ -164,6 +164,38 @@ router.patch('/repositories/:id/status', async function (req, res) {
   } catch (error) {
     console.error('Update repository status error:', error);
     return res.status(500).json({ message: 'Unable to update status.' });
+  }
+});
+
+// PATCH route to mark topic as complete (from Allotted to Complete)
+router.patch('/repositories/:id/complete', async function (req, res) {
+  try {
+    var repositoryId = req.params.id;
+
+    if (!mongoose.Types.ObjectId.isValid(repositoryId)) {
+      return res.status(400).json({ message: 'Invalid repository ID format.' });
+    }
+
+    var repository = await Repository.findById(repositoryId);
+
+    if (!repository) {
+      return res.status(404).json({ message: 'Repository not found.' });
+    }
+
+    if (repository.status !== 'Allotted') {
+      return res.status(400).json({ message: 'Only allotted topics can be marked as complete.' });
+    }
+
+    repository.status = 'Complete';
+    await repository.save();
+
+    return res.json({
+      repository,
+      message: 'Topic marked as complete successfully.',
+    });
+  } catch (error) {
+    console.error('Mark topic as complete error:', error);
+    return res.status(500).json({ message: 'Unable to mark topic as complete.' });
   }
 });
 
