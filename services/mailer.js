@@ -1,4 +1,5 @@
 var nodemailer = require('nodemailer');
+var https = require('https');
 
 var transporter = null;
 var transporterInitialized = false;
@@ -332,11 +333,108 @@ var buildContactEmail = function (context) {
   return { text, html };
 };
 
+// Send email using Brevo API (works better with Render - no SMTP port blocking)
+var sendEmailViaBrevo = async function (to, from, subject, html, text) {
+  var brevoApiKey = process.env.BREVO_API_KEY;
+  if (!brevoApiKey) {
+    return null;
+  }
+
+  var postData = JSON.stringify({
+    sender: {
+      email: from,
+      name: process.env.BREVO_SENDER_NAME || 'Brahmarishi Vishwamitra Research Center'
+    },
+    to: [
+      {
+        email: to
+      }
+    ],
+    subject: subject,
+    htmlContent: html,
+    textContent: text
+  });
+
+  return new Promise(function (resolve, reject) {
+    var options = {
+      hostname: 'api.brevo.com',
+      port: 443,
+      path: '/v3/smtp/email',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key': brevoApiKey,
+        'Content-Length': Buffer.byteLength(postData),
+      },
+      timeout: 30000,
+    };
+
+    var req = https.request(options, function (res) {
+      var data = '';
+      res.on('data', function (chunk) {
+        data += chunk;
+      });
+      res.on('end', function () {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          try {
+            var response = data ? JSON.parse(data) : { messageId: 'sent' };
+            resolve(response);
+          } catch (parseError) {
+            resolve({ messageId: 'sent', raw: data });
+          }
+        } else {
+          var errorData = data ? (function() {
+            try {
+              return JSON.parse(data);
+            } catch (e) {
+              return { message: data };
+            }
+          })() : { message: 'Unknown error' };
+          reject(new Error('Brevo API error: ' + res.statusCode + ' - ' + JSON.stringify(errorData)));
+        }
+      });
+    });
+
+    req.on('error', function (error) {
+      reject(error);
+    });
+
+    req.on('timeout', function () {
+      req.destroy();
+      reject(new Error('Brevo API timeout'));
+    });
+
+    req.write(postData);
+    req.end();
+  });
+};
+
 var sendContributionConfirmation = async function (recipientEmail, context) {
   var from = process.env.MAIL_FROM || process.env.SMTP_USER;
   var subject = process.env.CONTRIBUTION_MAIL_SUBJECT || 'Thank you for your contribution submission';
   var content = buildContributionEmail(context || {});
 
+  // Try Brevo API first (if API key is set) - works better with Render
+  var brevoApiKey = process.env.BREVO_API_KEY;
+  if (brevoApiKey) {
+    try {
+      var result = await Promise.race([
+        sendEmailViaBrevo(recipientEmail, from, subject, content.html, content.text),
+        new Promise(function (_, reject) {
+          setTimeout(function () {
+            reject(new Error('Brevo API timeout after 30 seconds'));
+          }, 30000);
+        })
+      ]);
+      console.log('✅ Contribution confirmation email sent via Brevo API to:', recipientEmail);
+      return;
+    } catch (brevoError) {
+      console.warn('⚠️ Brevo API failed, falling back to SMTP:', brevoError.message);
+      // Fall through to SMTP
+    }
+  }
+
+  // Fallback to SMTP
   var mailTransporter = getTransporter();
   if (!mailTransporter) {
     console.warn('Email transporter not available. Skipping contribution confirmation email.');
@@ -516,6 +614,27 @@ var sendContactConfirmation = async function (recipientEmail, context) {
   var subject = process.env.CONTACT_MAIL_SUBJECT || 'Thank you for contacting us';
   var content = buildContactEmail(context || {});
 
+  // Try Brevo API first (if API key is set) - works better with Render
+  var brevoApiKey = process.env.BREVO_API_KEY;
+  if (brevoApiKey) {
+    try {
+      var result = await Promise.race([
+        sendEmailViaBrevo(recipientEmail, from, subject, content.html, content.text),
+        new Promise(function (_, reject) {
+          setTimeout(function () {
+            reject(new Error('Brevo API timeout after 30 seconds'));
+          }, 30000);
+        })
+      ]);
+      console.log('✅ Contact confirmation email sent via Brevo API to:', recipientEmail);
+      return;
+    } catch (brevoError) {
+      console.warn('⚠️ Brevo API failed, falling back to SMTP:', brevoError.message);
+      // Fall through to SMTP
+    }
+  }
+
+  // Fallback to SMTP
   var mailTransporter = getTransporter();
   if (!mailTransporter) {
     console.warn('Email transporter not available. Skipping contact confirmation email.');
@@ -555,6 +674,27 @@ var sendAdminContactNotification = async function (adminEmail, context) {
   var subject = process.env.ADMIN_CONTACT_MAIL_SUBJECT || 'New Contact Form Submission';
   var content = buildAdminContactEmail(context || {});
 
+  // Try Brevo API first (if API key is set) - works better with Render
+  var brevoApiKey = process.env.BREVO_API_KEY;
+  if (brevoApiKey) {
+    try {
+      var result = await Promise.race([
+        sendEmailViaBrevo(adminEmail, from, subject, content.html, content.text),
+        new Promise(function (_, reject) {
+          setTimeout(function () {
+            reject(new Error('Brevo API timeout after 30 seconds'));
+          }, 30000);
+        })
+      ]);
+      console.log('✅ Admin contact notification email sent via Brevo API to:', adminEmail);
+      return;
+    } catch (brevoError) {
+      console.warn('⚠️ Brevo API failed, falling back to SMTP:', brevoError.message);
+      // Fall through to SMTP
+    }
+  }
+
+  // Fallback to SMTP
   var mailTransporter = getTransporter();
   if (!mailTransporter) {
     console.warn('Email transporter not available. Skipping admin notification email.');
