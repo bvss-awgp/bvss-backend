@@ -44,6 +44,15 @@ app.use(cors(corsOptions));
 // Handle preflight requests explicitly
 app.options('*', cors(corsOptions));
 
+// Request logging middleware
+app.use(function(req, res, next) {
+  console.log('📥 Incoming request:', req.method, req.path, req.originalUrl);
+  if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') {
+    console.log('Request body:', JSON.stringify(req.body));
+  }
+  next();
+});
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
