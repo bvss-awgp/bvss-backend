@@ -42,58 +42,80 @@ router.get('/', async function (req, res) {
 // POST /blogs/:slug/like - Like a blog (requires auth)
 router.post('/:slug/like', requireAuth, async function (req, res) {
   try {
+    console.log('📥 POST /blogs/:slug/like - Request received');
     var slug = req.params.slug;
     var userId = req.auth.userId;
+    
+    console.log('Slug:', slug);
+    console.log('User ID:', userId);
 
     var blog = await Blog.findOne({ slug: slug, is_published: true });
     if (!blog) {
+      console.log('❌ Blog not found for slug:', slug);
       return res.status(404).json({ message: 'Blog not found.' });
     }
+
+    console.log('✅ Blog found:', blog._id, blog.title);
 
     // Check if user already liked this blog
     var existingLike = await BlogLike.findOne({ blog: blog._id, user: userId });
     if (existingLike) {
+      console.log('⚠️ User already liked this blog');
       return res.status(400).json({ message: 'Blog already liked.' });
     }
 
     // Create like
-    await BlogLike.create({
+    var like = await BlogLike.create({
       blog: blog._id,
       user: userId,
     });
 
+    console.log('✅ Like created successfully:', like._id);
+
     return res.json({ message: 'Blog liked successfully.' });
   } catch (error) {
-    console.error('Like blog error:', error);
+    console.error('❌ Like blog error:', error);
     if (error.code === 11000) {
       return res.status(400).json({ message: 'Blog already liked.' });
     }
-    return res.status(500).json({ message: 'Unable to like blog.' });
+    return res.status(500).json({ message: 'Unable to like blog.', error: process.env.NODE_ENV === 'development' ? error.message : undefined });
   }
 });
 
 // DELETE /blogs/:slug/like - Unlike a blog (requires auth)
 router.delete('/:slug/like', requireAuth, async function (req, res) {
   try {
+    console.log('📥 DELETE /blogs/:slug/like - Request received');
     var slug = req.params.slug;
     var userId = req.auth.userId;
+    
+    console.log('Slug:', slug);
+    console.log('User ID:', userId);
 
     var blog = await Blog.findOne({ slug: slug, is_published: true });
     if (!blog) {
+      console.log('❌ Blog not found for slug:', slug);
       return res.status(404).json({ message: 'Blog not found.' });
     }
+
+    console.log('✅ Blog found:', blog._id, blog.title);
 
     // Remove like
     var result = await BlogLike.deleteOne({ blog: blog._id, user: userId });
     
+    console.log('Delete result:', result);
+    
     if (result.deletedCount === 0) {
+      console.log('⚠️ Like not found for deletion');
       return res.status(404).json({ message: 'Like not found.' });
     }
 
+    console.log('✅ Like deleted successfully');
+
     return res.json({ message: 'Blog unliked successfully.' });
   } catch (error) {
-    console.error('Unlike blog error:', error);
-    return res.status(500).json({ message: 'Unable to unlike blog.' });
+    console.error('❌ Unlike blog error:', error);
+    return res.status(500).json({ message: 'Unable to unlike blog.', error: process.env.NODE_ENV === 'development' ? error.message : undefined });
   }
 });
 
