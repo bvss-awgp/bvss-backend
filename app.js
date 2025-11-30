@@ -15,6 +15,7 @@ var adminRouter = require('./routes/admin');
 var youtubeRouter = require('./routes/youtube');
 var blogsRouter = require('./routes/blogs');
 var cookiesRouter = require('./routes/cookies');
+var otpRouter = require('./routes/otp');
 
 var app = express();
 
@@ -57,6 +58,7 @@ app.use('/admin', adminRouter);
 app.use('/youtube', youtubeRouter);
 app.use('/blogs', blogsRouter);
 app.use('/cookies', cookiesRouter);
+app.use('/otp', otpRouter);
 
 // 404 handler - return JSON for API routes
 app.use(function(req, res, next) {

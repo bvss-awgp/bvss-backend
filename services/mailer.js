@@ -1036,10 +1036,135 @@ var sendLoginNotification = async function (recipientEmail) {
   }
 };
 
+var buildOTPEmail = function (otp, name) {
+  var recipientName = name || 'User';
+
+  var lines = [
+    'Email Verification Code',
+    '',
+    'Dear ' + recipientName + ',',
+    '',
+    'Your verification code is: ' + otp,
+    '',
+    'This code will expire in 3 minutes.',
+    '',
+    'If you did not request this code, please ignore this email.',
+    '',
+    'Best regards,',
+    'Brahmarishi Vishwamitra Research Center',
+  ];
+
+  var text = lines.join('\n');
+  var html =
+    '<!DOCTYPE html>' +
+    '<html lang="en">' +
+    '<head>' +
+    '<meta charset="UTF-8">' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+    '</head>' +
+    '<body style="margin:0; padding:0; font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, \'Helvetica Neue\', Arial, sans-serif; background-color:#f5f5f5;">' +
+    '<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f5f5; padding:40px 20px;">' +
+    '<tr>' +
+    '<td align="center">' +
+    '<table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 4px 6px rgba(0,0,0,0.1);">' +
+    '<tr>' +
+    '<td style="background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%); padding:32px 40px; text-align:center;">' +
+    '<h1 style="margin:0; color:#ffffff; font-size:24px; font-weight:700;">🔐 Email Verification</h1>' +
+    '</td>' +
+    '</tr>' +
+    '<tr>' +
+    '<td style="padding:40px;">' +
+    '<p style="margin:0 0 16px; color:#111827; font-size:16px;">Dear ' + recipientName + ',</p>' +
+    '<p style="margin:0 0 24px; color:#374151; font-size:15px; line-height:1.8;">Your verification code is:</p>' +
+    '<div style="background-color:#f9fafb; border:2px dashed #d1d5db; border-radius:8px; padding:24px; text-align:center; margin:24px 0;">' +
+    '<p style="margin:0; color:#111827; font-size:32px; font-weight:700; letter-spacing:8px; font-family:monospace;">' + otp + '</p>' +
+    '</div>' +
+    '<p style="margin:0 0 16px; color:#6b7280; font-size:14px; text-align:center;">This code will expire in 3 minutes.</p>' +
+    '<div style="background-color:#fee2e2; border-left:4px solid #dc2626; padding:16px; border-radius:8px; margin:24px 0;">' +
+    '<p style="margin:0; color:#991b1b; font-size:13px;">⚠️ If you did not request this code, please ignore this email.</p>' +
+    '</div>' +
+    '<p style="margin:20px 0 8px; color:#374151; font-size:15px;">Best regards,<br/>Brahmarishi Vishwamitra Research Center</p>' +
+    '</td>' +
+    '</tr>' +
+    '</table>' +
+    '</td>' +
+    '</tr>' +
+    '</table>' +
+    '</body>' +
+    '</html>';
+
+  return { text, html };
+};
+
+var sendOTPEmail = async function (recipientEmail, otp, name) {
+  var from = process.env.MAIL_FROM || process.env.SMTP_USER;
+  var subject = process.env.OTP_MAIL_SUBJECT || 'Email Verification Code - Brahmarishi Vishwamitra Research Center';
+  var content = buildOTPEmail(otp, name);
+
+  // Try Brevo API first (if API key is set) - works better with Render
+  var brevoApiKey = process.env.BREVO_API_KEY;
+  if (brevoApiKey) {
+    try {
+      var result = await Promise.race([
+        sendEmailViaBrevo(recipientEmail, from, subject, content.html, content.text),
+        new Promise(function (_, reject) {
+          setTimeout(function () {
+            reject(new Error('Brevo API timeout after 30 seconds'));
+          }, 30000);
+        })
+      ]);
+      console.log('✅ OTP email sent via Brevo API to:', recipientEmail);
+      return;
+    } catch (brevoError) {
+      console.warn('⚠️ Brevo API failed, falling back to SMTP:', brevoError.message);
+      if (brevoError.message.includes('401') || brevoError.message.includes('Invalid API key')) {
+        console.warn('💡 To fix: Go to https://app.brevo.com/ → Settings → SMTP & API → Generate a new API key');
+        console.warn('   Then set BREVO_API_KEY in Render environment variables');
+      }
+      // Fall through to SMTP
+    }
+  } else {
+    console.warn('ℹ️ BREVO_API_KEY not set. Using SMTP (may timeout on Render).');
+  }
+
+  // Fallback to SMTP
+  var mailTransporter = getTransporter();
+  if (!mailTransporter) {
+    console.warn('Email transporter not available. Skipping OTP email.');
+    return;
+  }
+
+  try {
+    var info = await Promise.race([
+      mailTransporter.sendMail({
+        to: recipientEmail,
+        from: from,
+        subject: subject,
+        text: content.text,
+        html: content.html,
+      }),
+      new Promise(function (_, reject) {
+        setTimeout(function () {
+          reject(new Error('Email send timeout after 30 seconds'));
+        }, 30000);
+      })
+    ]);
+    console.log('✅ OTP email sent successfully to:', recipientEmail);
+  } catch (error) {
+    if (error.code === 'ETIMEDOUT' || error.message.includes('timeout')) {
+      console.warn('⚠️ Email send timeout (non-critical):', recipientEmail);
+      console.warn('💡 Check SMTP_HOST and SMTP_PORT settings');
+    } else {
+      console.warn('⚠️ Failed to send OTP email (non-critical):', error.message);
+    }
+  }
+};
+
 module.exports = {
   sendContributionConfirmation,
   sendContactConfirmation,
   sendAdminContactNotification,
   sendWelcomeEmail,
   sendLoginNotification,
+  sendOTPEmail,
 };
