@@ -43,163 +43,69 @@ router.get('/', async function (req, res) {
 // POST /blogs/:slug/like - Like a blog (requires auth)
 router.post('/:slug/like', requireAuth, async function (req, res) {
   try {
-    console.log('📥 POST /blogs/:slug/like - Request received');
     var slug = req.params.slug;
     var userId = req.auth.userId;
-    
-    console.log('Slug:', slug);
-    console.log('User ID:', userId);
-    console.log('User ID type:', typeof userId);
-    console.log('User ID value:', userId?.toString());
 
-    // Validate userId
     if (!userId) {
-      console.error('❌ User ID is missing or invalid');
       return res.status(401).json({ message: 'User authentication required.' });
     }
 
     var blog = await Blog.findOne({ slug: slug, is_published: true });
     if (!blog) {
-      console.log('❌ Blog not found for slug:', slug);
       return res.status(404).json({ message: 'Blog not found.' });
-    }
-
-    console.log('✅ Blog found:', blog._id, blog.title);
-    console.log('Blog ID type:', typeof blog._id);
-    console.log('Blog ID value:', blog._id?.toString());
-
-    // Validate blog._id
-    if (!blog._id) {
-      console.error('❌ Blog ID is missing or invalid');
-      return res.status(500).json({ message: 'Invalid blog data.' });
     }
 
     // Check if user already liked this blog
     var existingLike = await BlogLike.findOne({ blog: blog._id, user: userId });
     if (existingLike) {
-      console.log('⚠️ User already liked this blog - state may be out of sync');
-      // Return 200 with a message instead of 400, so frontend can refresh state
-      // Or return 400 but with more context
-      return res.status(400).json({ 
-        message: 'Blog already liked.',
-        code: 'ALREADY_LIKED',
-        alreadyLiked: true
-      });
+      // Already liked - return success (frontend will handle state)
+      return res.json({ message: 'Blog already liked.', alreadyLiked: true });
     }
 
-    // Ensure both IDs are valid ObjectIds before creating
-    if (!mongoose.Types.ObjectId.isValid(blog._id)) {
-      console.error('❌ Invalid blog ObjectId:', blog._id);
-      return res.status(500).json({ message: 'Invalid blog ID format.' });
-    }
-    
-    if (!mongoose.Types.ObjectId.isValid(userId)) {
-      console.error('❌ Invalid user ObjectId:', userId);
-      return res.status(401).json({ message: 'Invalid user ID format.' });
-    }
-
-    // Convert to ObjectId explicitly to ensure proper format
-    var blogObjectId;
-    var userObjectId;
-    
-    try {
-      blogObjectId = mongoose.Types.ObjectId.isValid(blog._id) ? new mongoose.Types.ObjectId(blog._id) : blog._id;
-      userObjectId = mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : userId;
-      
-      if (!blogObjectId || !userObjectId) {
-        console.error('❌ Failed to convert IDs to ObjectId');
-        console.error('Blog ID:', blog._id, 'Type:', typeof blog._id);
-        console.error('User ID:', userId, 'Type:', typeof userId);
-        return res.status(500).json({ message: 'Invalid ID format.' });
-      }
-      
-      console.log('Creating like with Blog ID:', blogObjectId.toString(), 'User ID:', userObjectId.toString());
-    } catch (idError) {
-      console.error('❌ Error converting IDs:', idError);
-      return res.status(500).json({ message: 'Error processing request data.' });
-    }
-
-    // Create like with explicit ObjectId conversion
-    try {
-      var like = await BlogLike.create({
-        blog: blogObjectId,
-        user: userObjectId,
-      });
-      console.log('✅ Like created successfully:', like._id);
-    } catch (createError) {
-      console.error('❌ Error creating like:', createError);
-      // If it's a duplicate key error, check if the like actually exists
-      if (createError.code === 11000) {
-        // Try to find the existing like
-        var existingLikeCheck = await BlogLike.findOne({ blog: blogObjectId, user: userObjectId });
-        if (existingLikeCheck) {
-          console.log('⚠️ Like already exists (duplicate key error)');
-          return res.status(400).json({ 
-            message: 'Blog already liked.',
-            code: 'ALREADY_LIKED',
-            alreadyLiked: true
-          });
-        }
-        // If like doesn't exist but we got duplicate key error, it might be an index issue
-        console.error('⚠️ Duplicate key error but like not found - possible index issue');
-        return res.status(500).json({ 
-          message: 'Database error. Please try again.',
-          code: 'DATABASE_ERROR'
-        });
-      }
-      throw createError; // Re-throw if it's not a duplicate key error
-    }
-
-    console.log('✅ Like created successfully:', like._id);
+    // Create like
+    var like = await BlogLike.create({
+      blog: blog._id,
+      user: userId,
+    });
 
     return res.json({ message: 'Blog liked successfully.' });
   } catch (error) {
-    console.error('❌ Like blog error:', error);
+    console.error('Like blog error:', error);
     if (error.code === 11000) {
-      return res.status(400).json({ 
-        message: 'Blog already liked.',
-        code: 'ALREADY_LIKED',
-        alreadyLiked: true
-      });
+      // Duplicate key - already liked
+      return res.json({ message: 'Blog already liked.', alreadyLiked: true });
     }
-    return res.status(500).json({ message: 'Unable to like blog.', error: process.env.NODE_ENV === 'development' ? error.message : undefined });
+    return res.status(500).json({ message: 'Unable to like blog.' });
   }
 });
 
 // DELETE /blogs/:slug/like - Unlike a blog (requires auth)
 router.delete('/:slug/like', requireAuth, async function (req, res) {
   try {
-    console.log('📥 DELETE /blogs/:slug/like - Request received');
     var slug = req.params.slug;
     var userId = req.auth.userId;
-    
-    console.log('Slug:', slug);
-    console.log('User ID:', userId);
+
+    if (!userId) {
+      return res.status(401).json({ message: 'User authentication required.' });
+    }
 
     var blog = await Blog.findOne({ slug: slug, is_published: true });
     if (!blog) {
-      console.log('❌ Blog not found for slug:', slug);
       return res.status(404).json({ message: 'Blog not found.' });
     }
-
-    console.log('✅ Blog found:', blog._id, blog.title);
 
     // Remove like
     var result = await BlogLike.deleteOne({ blog: blog._id, user: userId });
     
-    console.log('Delete result:', result);
-    
     if (result.deletedCount === 0) {
-      console.log('⚠️ Like not found for deletion');
-      return res.status(404).json({ message: 'Like not found.' });
+      // Not liked - return success (frontend will handle state)
+      return res.json({ message: 'Blog not liked.', alreadyUnliked: true });
     }
-
-    console.log('✅ Like deleted successfully');
 
     return res.json({ message: 'Blog unliked successfully.' });
   } catch (error) {
-    console.error('❌ Unlike blog error:', error);
-    return res.status(500).json({ message: 'Unable to unlike blog.', error: process.env.NODE_ENV === 'development' ? error.message : undefined });
+    console.error('Unlike blog error:', error);
+    return res.status(500).json({ message: 'Unable to unlike blog.' });
   }
 });
 
@@ -488,4 +394,3 @@ router.delete('/:id', requireAdmin, async function (req, res) {
 });
 
 module.exports = router;
-
