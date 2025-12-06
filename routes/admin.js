@@ -199,6 +199,40 @@ router.patch('/repositories/:id/complete', async function (req, res) {
   }
 });
 
+// PATCH route to update category
+router.patch('/repositories/:id/category', async function (req, res) {
+  try {
+    var repositoryId = req.params.id;
+    var newCategory = req.body.category;
+
+    if (!newCategory || !newCategory.trim()) {
+      return res.status(400).json({ message: 'Category is required.' });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(repositoryId)) {
+      return res.status(400).json({ message: 'Invalid repository ID format.' });
+    }
+
+    var repository = await Repository.findByIdAndUpdate(
+      repositoryId,
+      { category: newCategory.trim() },
+      { new: true }
+    );
+
+    if (!repository) {
+      return res.status(404).json({ message: 'Repository not found.' });
+    }
+
+    return res.json({
+      repository,
+      message: 'Category updated successfully.',
+    });
+  } catch (error) {
+    console.error('Update repository category error:', error);
+    return res.status(500).json({ message: 'Unable to update category.' });
+  }
+});
+
 router.get('/contact-messages', async function (req, res) {
   try {
     var contactMessages = await ContactMessage.find({})
