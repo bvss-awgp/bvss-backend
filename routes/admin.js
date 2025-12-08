@@ -97,7 +97,33 @@ router.post('/repositories', async function (req, res) {
 
 router.get('/repositories', async function (req, res) {
   try {
-    var repositories = await Repository.find({}).lean().sort({ createdAt: -1 });
+    // Sort: Allotted topics first, then by createdAt (newest first)
+    var repositories = await Repository.find({})
+      .lean()
+      .sort({ 
+        status: 1, // This will sort alphabetically, but we'll use aggregation for proper priority
+        createdAt: -1 
+      });
+    
+    // Re-sort to prioritize "Allotted" status
+    repositories.sort(function(a, b) {
+      var aStatus = a.status || 'Incomplete';
+      var bStatus = b.status || 'Incomplete';
+      
+      // Allotted topics first
+      if (aStatus === 'Allotted' && bStatus !== 'Allotted') {
+        return -1;
+      }
+      if (aStatus !== 'Allotted' && bStatus === 'Allotted') {
+        return 1;
+      }
+      
+      // For same status priority, sort by createdAt (newest first)
+      var aDate = new Date(a.createdAt || 0);
+      var bDate = new Date(b.createdAt || 0);
+      return bDate - aDate;
+    });
+    
     return res.json({ repositories });
   } catch (error) {
     console.error('Fetch repositories error:', error);
