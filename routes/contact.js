@@ -30,16 +30,27 @@ router.post('/', async function (req, res) {
       // Error already logged in mailer service
     });
 
-    // Send notification email to admin (non-blocking)
+    // Send notification email to admin(s) (non-blocking)
+    // Support multiple emails separated by commas
     var adminEmail = process.env.ADMIN_EMAIL || process.env.SMTP_USER;
     if (adminEmail) {
-      sendAdminContactNotification(adminEmail, {
-        name: name,
-        email: email,
-        inquiryType: inquiryType,
-        message: message,
-      }).catch(function() {
-        // Error already logged in mailer service
+      // Split by comma and trim whitespace, filter out empty strings
+      var adminEmails = adminEmail.split(',').map(function(email) {
+        return email.trim();
+      }).filter(function(email) {
+        return email.length > 0;
+      });
+      
+      // Send to all admin emails
+      adminEmails.forEach(function(email) {
+        sendAdminContactNotification(email, {
+          name: name,
+          email: email,
+          inquiryType: inquiryType,
+          message: message,
+        }).catch(function() {
+          // Error already logged in mailer service
+        });
       });
     }
 
