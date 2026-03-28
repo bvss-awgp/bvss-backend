@@ -8,16 +8,18 @@ router.post('/', async function (req, res) {
   try {
     var name = req.body.name;
     var email = req.body.email;
+    var phone = typeof req.body.phone === 'string' ? req.body.phone.trim() : '';
     var inquiryType = req.body.inquiryType;
     var message = req.body.message;
 
-    if (!name || !email || !message || !inquiryType) {
+    if (!name || !email || !phone || !message || !inquiryType) {
       return res.status(400).json({ message: 'All fields are required.' });
     }
 
     var contactMessage = await ContactMessage.create({
       name,
       email,
+      phone,
       inquiryType,
       message,
     });
@@ -36,6 +38,7 @@ router.post('/', async function (req, res) {
       sendAdminContactNotification(adminEmail, {
         name: name,
         email: email,
+        phone: phone,
         inquiryType: inquiryType,
         message: message,
       }).catch(function() {
@@ -49,6 +52,7 @@ router.post('/', async function (req, res) {
         id: contactMessage._id,
         name: contactMessage.name,
         email: contactMessage.email,
+        phone: contactMessage.phone,
         inquiryType: contactMessage.inquiryType,
         message: contactMessage.message,
         createdAt: contactMessage.createdAt,

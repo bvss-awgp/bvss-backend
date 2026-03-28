@@ -526,9 +526,18 @@ var sendContributionConfirmation = async function (recipientEmail, context) {
   }
 };
 
+var escapeHtml = function (value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+};
+
 var buildAdminContactEmail = function (context) {
   var name = context.name || 'Unknown';
   var email = context.email || 'No email provided';
+  var phone = (context.phone && String(context.phone).trim()) || '';
   var inquiryType = context.inquiryType || 'inquiry';
   var message = context.message || 'No message provided';
   var inquiryTypeLabel = inquiryType
@@ -545,6 +554,7 @@ var buildAdminContactEmail = function (context) {
     '',
     'Name: ' + name,
     'Email: ' + email,
+    'Contact number: ' + (phone || 'Not provided'),
     'Inquiry Type: ' + inquiryTypeLabel,
     'Message:',
     message,
@@ -606,6 +616,20 @@ var buildAdminContactEmail = function (context) {
     '<tr>' +
     '<td width="140" style="color:#6b7280; font-size:13px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">✉️ Email</td>' +
     '<td><a href="mailto:' + email + '" style="color:#ea580c; font-size:15px; font-weight:500; text-decoration:none;">' + email + '</a></td>' +
+    '</tr>' +
+    '</table>' +
+    '</td>' +
+    '</tr>' +
+    
+    // Phone field
+    '<tr>' +
+    '<td style="padding:12px 0; border-bottom:1px solid #e5e7eb;">' +
+    '<table width="100%" cellpadding="0" cellspacing="0">' +
+    '<tr>' +
+    '<td width="140" style="color:#6b7280; font-size:13px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">📞 Contact</td>' +
+    '<td style="color:#111827; font-size:15px; font-weight:500;">' +
+    (phone ? escapeHtml(phone) : '<span style="color:#9ca3af;">Not provided</span>') +
+    '</td>' +
     '</tr>' +
     '</table>' +
     '</td>' +

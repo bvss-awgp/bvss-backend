@@ -33,7 +33,6 @@ router.post('/', async function (req, res) {
       'guruDiksha',
       'missionBooksRead',
       'researchCategories',
-      'hoursPerWeek',
       'consent',
     ];
 
